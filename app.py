@@ -48,8 +48,8 @@ def get_svg_content():
     try:
         with open("assets/logo.svg", "r") as f:
             svg_content = f.read()
-            # Ensure we're returning properly escaped content
-            return svg_content
+            # Wrap SVG content in a div for proper rendering
+            return f'<div class="logo-container">{svg_content}</div>'
     except Exception as e:
         # Fallback if the SVG can't be loaded
         print(f"Error loading SVG: {str(e)}")
