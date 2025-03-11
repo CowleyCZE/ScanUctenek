@@ -74,7 +74,7 @@ with st.sidebar:
     
     if selected_language != st.session_state.language:
         st.session_state.language = selected_language
-        st.experimental_rerun()
+        st.rerun()
 
 # Main app
 st.title(get_text('app_name', st.session_state.language))
@@ -203,7 +203,7 @@ with tabs[0]:
                     print(f"Error saving receipt: {str(e)}")
                 finally:
                     # Always rerun to refresh the form/page
-                    st.experimental_rerun()
+                    st.rerun()
 
 # HISTORY TAB
 with tabs[1]:
@@ -248,7 +248,7 @@ with tabs[1]:
                                 if 0 <= original_idx < len(st.session_state.receipts):
                                     st.session_state.receipts.pop(original_idx)
                                     st.success(get_text('receipt_deleted', st.session_state.language))
-                                    st.experimental_rerun()
+                                    st.rerun()
                                 else:
                                     st.error("Chyba při mazání účtenky - neplatný index")
                             except Exception as e:
@@ -264,7 +264,7 @@ with tabs[1]:
             # Offer a reset button if things are really broken
             if st.button("Resetovat historii účtenek"):
                 st.session_state.receipts = []
-                st.experimental_rerun()
+                st.rerun()
 
 # EXPORT TAB
 with tabs[2]:
@@ -368,7 +368,7 @@ with tabs[3]:
                 st.session_state.receipts = []
                 st.session_state.current_receipt = None
                 st.success(get_text('all_receipts_deleted', st.session_state.language))
-                st.experimental_rerun()
+                st.rerun()
         else:
             st.info(get_text('no_receipts_to_delete', st.session_state.language))
 
