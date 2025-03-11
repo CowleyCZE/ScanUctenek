@@ -144,6 +144,11 @@ TRANSLATIONS = {
         'fr': 'Supprimer',
         'de': 'Löschen'
     },
+    'receipt_deleted': {
+        'cs': 'Účtenka byla smazána.',
+        'fr': 'Le reçu a été supprimé.',
+        'de': 'Der Beleg wurde gelöscht.'
+    },
     
     # Export page
     'export_to_excel': {

@@ -45,12 +45,24 @@ if 'column_mapping' not in st.session_state:
     }
 
 def get_svg_content():
-    with open("assets/logo.svg", "r") as f:
-        return f.read()
+    try:
+        with open("assets/logo.svg", "r") as f:
+            svg_content = f.read()
+            # Ensure we're returning properly escaped content
+            return svg_content
+    except Exception as e:
+        # Fallback if the SVG can't be loaded
+        print(f"Error loading SVG: {str(e)}")
+        return '<div style="color:#2196F3;font-weight:bold;font-size:24px;margin:10px;">SkenÚčtenek</div>'
 
 # Language selector in sidebar
 with st.sidebar:
-    st.markdown(get_svg_content(), unsafe_allow_html=True)
+    try:
+        st.markdown(get_svg_content(), unsafe_allow_html=True)
+    except Exception as e:
+        # Fallback if the markdown fails
+        print(f"Error displaying SVG: {str(e)}")
+        st.write("SkenÚčtenek")
     st.title(get_text('app_name', st.session_state.language))
     
     selected_language = st.selectbox(
@@ -160,27 +172,38 @@ with tabs[0]:
             submitted = st.form_submit_button(get_text('save_receipt', st.session_state.language))
             
             if submitted:
-                # Update receipt information
-                updated_receipt = {
-                    'merchant': merchant,
-                    'date': date,
-                    'receipt_number': receipt_number,
-                    'total': total,
-                    'payment_method': payment_method,
-                    'ocr_text': extracted_text,
-                    'timestamp': datetime.now()
-                }
-                
-                # Add to receipts list
-                st.session_state.receipts.append(updated_receipt)
-                st.success(get_text('receipt_saved', st.session_state.language))
-                
-                # Clear current receipt
-                st.session_state.current_receipt = None
-                
-                # Show success message and clean up
-                st.balloons()
-                st.experimental_rerun()
+                try:
+                    # Update receipt information with error handling
+                    updated_receipt = {
+                        'merchant': str(merchant) if merchant else '',
+                        'date': date if date else datetime.now(),
+                        'receipt_number': str(receipt_number) if receipt_number else '',
+                        'total': float(total) if total is not None else 0.0,
+                        'payment_method': str(payment_method) if payment_method else '',
+                        'ocr_text': str(extracted_text) if extracted_text else '',
+                        'timestamp': datetime.now()
+                    }
+                    
+                    # Add to receipts list - ensure we're adding a valid object
+                    if not hasattr(st.session_state, 'receipts') or st.session_state.receipts is None:
+                        st.session_state.receipts = []
+                    
+                    # Safely append the receipt
+                    st.session_state.receipts.append(updated_receipt)
+                    st.success(get_text('receipt_saved', st.session_state.language))
+                    
+                    # Clear current receipt
+                    st.session_state.current_receipt = None
+                    
+                    # Show success message and clean up
+                    st.balloons()
+                except Exception as e:
+                    # Show error if something goes wrong
+                    st.error(f"Chyba při ukládání účtenky: {str(e)}")
+                    print(f"Error saving receipt: {str(e)}")
+                finally:
+                    # Always rerun to refresh the form/page
+                    st.experimental_rerun()
 
 # HISTORY TAB
 with tabs[1]:
@@ -189,25 +212,59 @@ with tabs[1]:
     if not st.session_state.receipts:
         st.info(get_text('no_receipts', st.session_state.language))
     else:
-        # Display receipts in reverse chronological order
-        for idx, receipt in enumerate(reversed(st.session_state.receipts)):
-            with st.expander(f"{receipt['merchant']} - {receipt['date'].strftime('%d.%m.%Y')} - {receipt['total']:.2f}"):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.write(f"**{get_text('merchant', st.session_state.language)}:** {receipt['merchant']}")
-                    st.write(f"**{get_text('date', st.session_state.language)}:** {receipt['date'].strftime('%d.%m.%Y')}")
-                    st.write(f"**{get_text('receipt_number', st.session_state.language)}:** {receipt['receipt_number']}")
-                
-                with col2:
-                    st.write(f"**{get_text('total', st.session_state.language)}:** {receipt['total']:.2f}")
-                    st.write(f"**{get_text('payment_method', st.session_state.language)}:** {receipt['payment_method']}")
-                
-                # Delete receipt button
-                if st.button(get_text('delete', st.session_state.language), key=f"delete_{idx}"):
-                    original_idx = len(st.session_state.receipts) - idx - 1
-                    st.session_state.receipts.pop(original_idx)
-                    st.experimental_rerun()
+        try:
+            # Display receipts in reverse chronological order
+            for idx, receipt in enumerate(reversed(st.session_state.receipts)):
+                try:
+                    # Safely format the receipt title with error handling
+                    merchant = receipt.get('merchant', 'Neznámý obchodník')
+                    try:
+                        date_str = receipt['date'].strftime('%d.%m.%Y') if isinstance(receipt['date'], datetime) else str(receipt.get('date', 'N/A'))
+                    except Exception:
+                        date_str = 'N/A'
+                    
+                    try:
+                        total_str = f"{float(receipt.get('total', 0.0)):.2f}"
+                    except Exception:
+                        total_str = '0.00'
+                    
+                    # Create the expander with safe formatting
+                    with st.expander(f"{merchant} - {date_str} - {total_str}"):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.write(f"**{get_text('merchant', st.session_state.language)}:** {merchant}")
+                            st.write(f"**{get_text('date', st.session_state.language)}:** {date_str}")
+                            st.write(f"**{get_text('receipt_number', st.session_state.language)}:** {receipt.get('receipt_number', 'N/A')}")
+                        
+                        with col2:
+                            st.write(f"**{get_text('total', st.session_state.language)}:** {total_str}")
+                            st.write(f"**{get_text('payment_method', st.session_state.language)}:** {receipt.get('payment_method', 'N/A')}")
+                        
+                        # Delete receipt button with error handling
+                        if st.button(get_text('delete', st.session_state.language), key=f"delete_{idx}"):
+                            try:
+                                original_idx = len(st.session_state.receipts) - idx - 1
+                                if 0 <= original_idx < len(st.session_state.receipts):
+                                    st.session_state.receipts.pop(original_idx)
+                                    st.success(get_text('receipt_deleted', st.session_state.language))
+                                    st.experimental_rerun()
+                                else:
+                                    st.error("Chyba při mazání účtenky - neplatný index")
+                            except Exception as e:
+                                st.error(f"Chyba při mazání účtenky: {str(e)}")
+                except Exception as e:
+                    # If a specific receipt has issues, just skip it
+                    st.warning(f"Chyba při zobrazení účtenky: {str(e)}")
+                    continue
+        except Exception as e:
+            # If the whole history fails, show an error
+            st.error(f"Chyba při načítání historie účtenek: {str(e)}")
+            print(f"Error in receipt history: {str(e)}")
+            # Offer a reset button if things are really broken
+            if st.button("Resetovat historii účtenek"):
+                st.session_state.receipts = []
+                st.experimental_rerun()
 
 # EXPORT TAB
 with tabs[2]:
@@ -216,57 +273,80 @@ with tabs[2]:
     if not st.session_state.receipts:
         st.info(get_text('no_receipts_to_export', st.session_state.language))
     else:
-        # File name for export
-        filename = st.text_input(
-            get_text('excel_filename', st.session_state.language),
-            value="receipts.xlsx"
-        )
-        
-        # Column mapping
-        st.subheader(get_text('column_mapping', st.session_state.language))
-        
-        col_mapping = {}
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            col_mapping['date'] = st.text_input(
-                get_text('date_column', st.session_state.language),
-                value=st.session_state.column_mapping['date']
+        try:
+            # File name for export with validation
+            filename = st.text_input(
+                get_text('excel_filename', st.session_state.language),
+                value="receipts.xlsx"
             )
-            col_mapping['total'] = st.text_input(
-                get_text('total_column', st.session_state.language),
-                value=st.session_state.column_mapping['total']
-            )
-            col_mapping['payment_method'] = st.text_input(
-                get_text('payment_method_column', st.session_state.language),
-                value=st.session_state.column_mapping['payment_method']
-            )
-        
-        with col2:
-            col_mapping['merchant'] = st.text_input(
-                get_text('merchant_column', st.session_state.language),
-                value=st.session_state.column_mapping['merchant']
-            )
-            col_mapping['receipt_number'] = st.text_input(
-                get_text('receipt_number_column', st.session_state.language),
-                value=st.session_state.column_mapping['receipt_number']
-            )
-        
-        # Update column mapping in session state
-        st.session_state.column_mapping = col_mapping
-        
-        # Export button
-        if st.button(get_text('export', st.session_state.language)):
-            with st.spinner(get_text('exporting', st.session_state.language)):
-                # Convert receipts to DataFrame and export
-                excel_buffer = export_to_excel(st.session_state.receipts, st.session_state.column_mapping)
-                
-                # Create download link
-                b64 = base64.b64encode(excel_buffer.getvalue()).decode()
-                href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}" class="download-button">{get_text("download_excel", st.session_state.language)}</a>'
-                st.markdown(href, unsafe_allow_html=True)
-                
-                st.success(get_text('export_success', st.session_state.language))
+            
+            # Ensure filename has proper extension
+            if not filename.endswith('.xlsx'):
+                filename += '.xlsx'
+            
+            # Column mapping
+            st.subheader(get_text('column_mapping', st.session_state.language))
+            
+            col_mapping = {}
+            col1, col2 = st.columns(2)
+            
+            # Make sure default mapping exists
+            if not hasattr(st.session_state, 'column_mapping') or not st.session_state.column_mapping:
+                st.session_state.column_mapping = {
+                    'date': 'Datum',
+                    'total': 'Celková částka',
+                    'payment_method': 'Způsob platby',
+                    'merchant': 'Obchodník',
+                    'receipt_number': 'Číslo účtenky'
+                }
+            
+            with col1:
+                col_mapping['date'] = st.text_input(
+                    get_text('date_column', st.session_state.language),
+                    value=st.session_state.column_mapping.get('date', 'Datum')
+                )
+                col_mapping['total'] = st.text_input(
+                    get_text('total_column', st.session_state.language),
+                    value=st.session_state.column_mapping.get('total', 'Celková částka')
+                )
+                col_mapping['payment_method'] = st.text_input(
+                    get_text('payment_method_column', st.session_state.language),
+                    value=st.session_state.column_mapping.get('payment_method', 'Způsob platby')
+                )
+            
+            with col2:
+                col_mapping['merchant'] = st.text_input(
+                    get_text('merchant_column', st.session_state.language),
+                    value=st.session_state.column_mapping.get('merchant', 'Obchodník')
+                )
+                col_mapping['receipt_number'] = st.text_input(
+                    get_text('receipt_number_column', st.session_state.language),
+                    value=st.session_state.column_mapping.get('receipt_number', 'Číslo účtenky')
+                )
+            
+            # Update column mapping in session state
+            st.session_state.column_mapping = col_mapping
+            
+            # Export button
+            if st.button(get_text('export', st.session_state.language)):
+                try:
+                    with st.spinner(get_text('exporting', st.session_state.language)):
+                        # Convert receipts to DataFrame and export
+                        excel_buffer = export_to_excel(st.session_state.receipts, st.session_state.column_mapping)
+                        
+                        # Create download link
+                        b64 = base64.b64encode(excel_buffer.getvalue()).decode()
+                        download_button_style = "display:inline-block; padding:10px 20px; background-color:#4CAF50; color:white; text-decoration:none; border-radius:4px; margin:10px 0;"
+                        href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}" style="{download_button_style}">{get_text("download_excel", st.session_state.language)}</a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                        
+                        st.success(get_text('export_success', st.session_state.language))
+                except Exception as e:
+                    st.error(f"Chyba při exportu: {str(e)}")
+                    print(f"Export error: {str(e)}")
+        except Exception as e:
+            st.error(f"Chyba při nastavení exportu: {str(e)}")
+            print(f"Export setup error: {str(e)}")
 
 # SETTINGS TAB
 with tabs[3]:
