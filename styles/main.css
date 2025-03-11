@@ -1,0 +1,194 @@
+/* Main Styling for SkenÚčtenek app */
+
+/* Color variables */
+:root {
+    --primary-color: #2196F3;    /* Blue */
+    --secondary-color: #4CAF50;  /* Green */
+    --accent-color: #FFC107;     /* Amber */
+    --background-color: #FFFFFF; /* White */
+    --text-color: #212121;       /* Dark Grey */
+    --error-color: #F44336;      /* Red */
+    --light-grey: #F5F5F5;
+    --medium-grey: #E0E0E0;
+}
+
+/* Global styles */
+body {
+    font-family: 'Roboto', sans-serif;
+    color: var(--text-color);
+    background-color: var(--background-color);
+}
+
+/* Header styling */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--primary-color);
+}
+
+/* Streamlit specific styling */
+.stButton > button {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    font-weight: bold;
+    border: none;
+    width: 100%;
+}
+
+.stButton > button:hover {
+    background-color: #0d8af0;
+    border: none;
+}
+
+/* Success button */
+button[data-baseweb="button"].st-emotion-cache-19rxjzo {
+    background-color: var(--secondary-color);
+}
+
+button[data-baseweb="button"].st-emotion-cache-19rxjzo:hover {
+    background-color: #3d9c40;
+}
+
+/* Error button */
+button[data-baseweb="button"].css-e5d9n:first-of-type {
+    background-color: var(--error-color);
+}
+
+button[data-baseweb="button"].css-e5d9n:first-of-type:hover {
+    background-color: #d32f2f;
+}
+
+/* Success/info/error boxes */
+.stAlert {
+    border-radius: 10px;
+    border-left-width: 10px;
+    padding: 1rem;
+}
+
+.stAlert > div {
+    padding: 0.5rem 0;
+}
+
+/* Form styling */
+[data-testid="stForm"] {
+    background-color: var(--light-grey);
+    padding: 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--medium-grey);
+}
+
+/* Tabs styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: white;
+    border-radius: 4px 4px 0 0;
+    gap: 1px;
+    padding: 10px 16px;
+    color: var(--text-color);
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+}
+
+/* Camera input */
+[data-testid="stCamera"] > div {
+    background-color: black;
+    border-radius: 10px;
+    border: 3px solid var(--primary-color);
+    overflow: hidden;
+}
+
+[data-testid="stCamera"] > label {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] > div:first-child {
+    width: 100%;
+}
+
+[data-testid="stFileUploader"] > div:first-child > div {
+    background-color: var(--light-grey);
+    border: 2px dashed var(--primary-color);
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+/* Excel download button */
+.download-button {
+    display: inline-block;
+    background-color: var(--secondary-color);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    text-decoration: none;
+    border-radius: 30px;
+    font-weight: bold;
+    margin: 1rem 0;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+}
+
+.download-button:hover {
+    background-color: #3d9c40;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transform: translateY(-2px);
+    text-decoration: none;
+    color: white;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    background-color: var(--light-grey);
+    border-radius: 5px;
+    padding: 0.5rem !important;
+    font-weight: bold;
+    border-left: 5px solid var(--primary-color);
+}
+
+.streamlit-expanderContent {
+    background-color: white;
+    border: 1px solid var(--medium-grey);
+    border-radius: 0 0 5px 5px;
+    padding: 1rem;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .stButton > button {
+        padding: 0.7rem 1rem;
+        font-size: 16px;
+    }
+    
+    h1 {
+        font-size: 24px;
+    }
+    
+    h2 {
+        font-size: 20px;
+    }
+    
+    h3 {
+        font-size: 18px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    
+    .download-button {
+        width: 100%;
+        text-align: center;
+    }
+}
