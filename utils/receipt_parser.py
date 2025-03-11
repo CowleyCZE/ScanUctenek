@@ -28,30 +28,33 @@ def extract_receipt_info(text, language='cs'):
         'receipt_number': ''
     }
     
+    # Normalize the text - fix common OCR errors
+    text = text.replace('|', '1').replace('O', '0').replace('o', '0')
+    
     # Extract merchant name (usually first few lines)
     lines = text.strip().split('\n')
     if lines:
-        # Try to find a line that looks like a company name
-        # Often the first non-empty line
-        for line in lines[:3]:
-            if len(line.strip()) > 2 and not re.match(r'^\d+$', line.strip()):
-                result['merchant'] = line.strip()
-                break
+        # Skip empty or very short lines
+        valid_lines = [line for line in lines[:5] if len(line.strip()) > 3 and not re.match(r'^\d+$', line.strip())]
+        if valid_lines:
+            # Most often first non-empty line that doesn't look like a date or number
+            result['merchant'] = valid_lines[0].strip()
     
-    # Extract date based on language
+    # Extract date based on language with improved patterns
     date_patterns = {
         'cs': [
-            r'(\d{1,2})\.(\d{1,2})\.(\d{2,4})',  # DD.MM.YYYY or DD.MM.YY
-            r'Datum:?\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})',
-            r'Dne:?\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})'
+            r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})',  # DD.MM.YYYY or DD.MM.YY
+            r'Datum:?\s*(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})',
+            r'Dne:?\s*(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})',
+            r'Date:?\s*(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})'
         ],
         'fr': [
-            r'(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})',  # DD/MM/YYYY or DD-MM-YYYY
-            r'Date:?\s*(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})'
+            r'(\d{1,2})[/-\.](\d{1,2})[/-\.](\d{2,4})',  # DD/MM/YYYY or DD-MM-YYYY
+            r'Date:?\s*(\d{1,2})[/-\.](\d{1,2})[/-\.](\d{2,4})'
         ],
         'de': [
-            r'(\d{1,2})\.(\d{1,2})\.(\d{2,4})',  # DD.MM.YYYY
-            r'Datum:?\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})'
+            r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})',  # DD.MM.YYYY
+            r'Datum:?\s*(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})'
         ]
     }
     
@@ -60,43 +63,67 @@ def extract_receipt_info(text, language='cs'):
     
     # Try each pattern
     for pattern in patterns:
-        date_matches = re.search(pattern, text)
+        date_matches = re.search(pattern, text, re.IGNORECASE)
         if date_matches:
             day, month, year = date_matches.groups()
             # Handle 2-digit years
             if len(year) == 2:
                 year = '20' + year
             try:
-                result['date'] = datetime(int(year), int(month), int(day))
-                break
+                # Validate date values
+                day_val = int(day)
+                month_val = int(month)
+                year_val = int(year)
+                
+                if 1 <= day_val <= 31 and 1 <= month_val <= 12 and 2000 <= year_val <= 2030:
+                    result['date'] = datetime(year_val, month_val, day_val)
+                    break
+                else:
+                    logger.warning(f"Found date with out-of-range values: {day}.{month}.{year}")
             except ValueError:
                 logger.warning(f"Found invalid date: {day}.{month}.{year}")
                 continue
     
-    # Extract total amount based on language
+    # Extract total amount based on language - enhanced patterns
     total_patterns = {
         'cs': [
-            r'CELKEM\s*(?:CZK|Kč)?\.?\s*(\d+[.,]\d{2})',
-            r'Celkem:?\s*(?:CZK|Kč)?\.?\s*(\d+[.,]\d{2})',
-            r'Součet:?\s*(?:CZK|Kč)?\.?\s*(\d+[.,]\d{2})',
-            r'Celková\s*částka:?\s*(?:CZK|Kč)?\.?\s*(\d+[.,]\d{2})',
-            r'(?:CZK|Kč)\s*(\d+[.,]\d{2})$',
-            r'TOTAL\s*(?:CZK|Kč)?\.?\s*(\d+[.,]\d{2})',
-            r'Celkem\s*(?:CZK|Kč)?\.?\s*[^\d]?(\d+[.,]\d{2})',
+            r'CELKEM\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'Celkem:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'Součet:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'SOUČET:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'Celková\s*částka:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'(?:CZK|Kč|KC)\s*(\d+[.,]\d{2})$',
+            r'TOTAL\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'Celkem\s*(?:CZK|Kč|KC)?\.?\s*[^\d]?(\d+[.,]\d{2})',
             r'Celkem:?\s*[^\d]?(\d+[.,]\d{2})',
+            r'ZAPLACENO:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'Zaplaceno:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'K ÚHRADĚ:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            r'K úhradě:?\s*(?:CZK|Kč|KC)?\.?\s*(\d+[.,]\d{2})',
+            # Fallback pattern - look for numeric values that look like prices at the end of lines
+            r'\s(\d+[.,]\d{2})(?:\s*(?:CZK|Kč|KC))?$'
         ],
         'fr': [
-            r'TOTAL\s*(?:EUR)?\.?\s*(\d+[.,]\d{2})',
-            r'Total:?\s*(?:EUR)?\.?\s*(\d+[.,]\d{2})',
-            r'MONTANT\s*(?:EUR)?\.?\s*(\d+[.,]\d{2})',
-            r'Total à payer:?\s*(?:EUR)?\.?\s*(\d+[.,]\d{2})',
-            r'EUR\s*(\d+[.,]\d{2})$'
+            r'TOTAL\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'Total:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'MONTANT\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'Montant:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'Total à payer:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'TOTAL TTC:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'Total TTC:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'NET A PAYER:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'(?:EUR|€)\s*(\d+[.,]\d{2})$',
+            r'\s(\d+[.,]\d{2})(?:\s*(?:EUR|€))?$'
         ],
         'de': [
-            r'GESAMT\s*(?:EUR)?\.?\s*(\d+[.,]\d{2})',
-            r'Summe:?\s*(?:EUR)?\.?\s*(\d+[.,]\d{2})',
-            r'Gesamtbetrag:?\s*(?:EUR)?\.?\s*(\d+[.,]\d{2})',
-            r'EUR\s*(\d+[.,]\d{2})$'
+            r'GESAMT\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'Summe:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'SUMME:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'Gesamtbetrag:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'GESAMTBETRAG:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'ZU ZAHLEN:?\s*(?:EUR|€)?\.?\s*(\d+[.,]\d{2})',
+            r'(?:EUR|€)\s*(\d+[.,]\d{2})$',
+            r'\s(\d+[.,]\d{2})(?:\s*(?:EUR|€))?$'
         ]
     }
     
@@ -105,32 +132,40 @@ def extract_receipt_info(text, language='cs'):
     
     # Try each pattern
     for pattern in patterns:
-        total_matches = re.search(pattern, text, re.IGNORECASE)
+        total_matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
         if total_matches:
-            total_str = total_matches.group(1).replace(',', '.')
-            try:
-                result['total'] = float(total_str)
+            # Use the largest value found (often the final total)
+            largest_total = 0.0
+            for total_str in total_matches:
+                try:
+                    total_val = float(total_str.replace(',', '.'))
+                    # Keep the largest value that's reasonably sized (to filter out possible line item prices)
+                    if total_val > largest_total and total_val < 100000:  # Sanity check for reasonable amount
+                        largest_total = total_val
+                except ValueError:
+                    logger.warning(f"Found invalid total amount: {total_str}")
+                    continue
+            
+            if largest_total > 0:
+                result['total'] = largest_total
                 break
-            except ValueError:
-                logger.warning(f"Found invalid total amount: {total_str}")
-                continue
     
-    # Extract payment method based on language
+    # Extract payment method based on language - enhanced patterns
     payment_patterns = {
         'cs': {
-            'cash': [r'HOTOVOST', r'Hotově', r'Hotovost', r'v hotovosti'],
-            'card': [r'KARTA', r'Platební karta', r'Kartou', r'Karta'],
-            'other': [r'Jiné', r'Ostatní', r'Bankovní převod']
+            'cash': [r'HOTOVOST', r'Hotově', r'Hotovost', r'v hotovosti', r'HOTOVĚ'],
+            'card': [r'KARTA', r'Platební karta', r'Kartou', r'Karta', r'KARTOU', r'PLATEBNÍ KARTA'],
+            'other': [r'Jiné', r'Ostatní', r'Bankovní převod', r'PŘEVOD', r'POUKÁZKA', r'STRAVENKY']
         },
         'fr': {
-            'cash': [r'ESPÈCES', r'ESPECES', r'Espèces', r'En espèces'],
-            'card': [r'CARTE', r'Carte bancaire', r'Carte de crédit', r'CB'],
-            'other': [r'Autre', r'Virement', r'Chèque']
+            'cash': [r'ESPÈCES', r'ESPECES', r'Espèces', r'En espèces', r'CASH'],
+            'card': [r'CARTE', r'Carte bancaire', r'Carte de crédit', r'CB', r'CARTE BANCAIRE'],
+            'other': [r'Autre', r'Virement', r'Chèque', r'CHEQUE', r'VIREMENT']
         },
         'de': {
-            'cash': [r'BARGELD', r'Bar', r'Barzahlung'],
-            'card': [r'KARTE', r'EC-Karte', r'Kreditkarte', r'Kartenzahlung'],
-            'other': [r'Andere', r'Überweisung', r'Lastschrift']
+            'cash': [r'BARGELD', r'Bar', r'Barzahlung', r'BAR', r'BARZAHLUNG'],
+            'card': [r'KARTE', r'EC-Karte', r'Kreditkarte', r'Kartenzahlung', r'EC KARTE', r'KARTENZAHLUNG'],
+            'other': [r'Andere', r'Überweisung', r'Lastschrift', r'UEBERWEISUNG', r'RECHNUNG']
         }
     }
     
@@ -169,26 +204,35 @@ def extract_receipt_info(text, language='cs'):
         else:
             result['payment_method'] = 'Cash'
     
-    # Extract receipt number based on language
+    # Extract receipt number based on language - enhanced patterns
     receipt_patterns = {
         'cs': [
-            r'Č\.\s*účtenky:?\s*(\w+)',
-            r'Doklad\s*(?:č\.):?\s*(\w+)',
-            r'Účtenka\s*(?:č\.):?\s*(\w+)',
-            r'Číslo\s*dokladu:?\s*(\w+)',
-            r'Číslo\s*účtenky:?\s*(\w+)'
+            r'Č\.\s*(?:účtenky|dokladu):?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Doklad\s*(?:č\.):?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Účtenka\s*(?:č\.):?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Číslo\s*dokladu:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Číslo\s*účtenky:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'DOKLAD\s*(?:č\.)?:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Cislo\s*dokladu:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Číslo\s*prodejky:?\s*[:#]?\s*(\w+[-/]?\w+)'
         ],
         'fr': [
-            r'N°\s*ticket:?\s*(\w+)',
-            r'Ticket\s*N°:?\s*(\w+)',
-            r'Facture\s*N°:?\s*(\w+)',
-            r'Numéro\s*de\s*reçu:?\s*(\w+)'
+            r'N°\s*ticket:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Ticket\s*N°:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Facture\s*N°:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Numéro\s*de\s*reçu:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Reçu\s*N°:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'TICKET\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'N°\s*TICKET\s*[:#]?\s*(\w+[-/]?\w+)'
         ],
         'de': [
-            r'Beleg\s*Nr\.:?\s*(\w+)',
-            r'Quittung\s*Nr\.:?\s*(\w+)',
-            r'Belegnummer:?\s*(\w+)',
-            r'Rechnungsnummer:?\s*(\w+)'
+            r'Beleg\s*Nr\.:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Quittung\s*Nr\.:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Belegnummer:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Rechnungsnummer:?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'BELEG\s*NR\.\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'BELEGNR\.\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Kassabon\s*Nr\.:?\s*[:#]?\s*(\w+[-/]?\w+)'
         ]
     }
     
@@ -199,7 +243,7 @@ def extract_receipt_info(text, language='cs'):
     for pattern in patterns:
         receipt_num_matches = re.search(pattern, text, re.IGNORECASE)
         if receipt_num_matches:
-            result['receipt_number'] = receipt_num_matches.group(1)
+            result['receipt_number'] = receipt_num_matches.group(1).strip()
             break
     
     logger.info(f"Extracted receipt information: {result}")
