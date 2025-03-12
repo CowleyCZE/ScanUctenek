@@ -27,22 +27,21 @@ with open("styles/main.css") as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
 # Session state initialization
-if 'language' not in st.session_state:
-    st.session_state.language = 'cs'  # Default to Czech
 if 'receipts' not in st.session_state:
     st.session_state.receipts = []
 if 'current_receipt' not in st.session_state:
     st.session_state.current_receipt = None
 if 'excel_file' not in st.session_state:
     st.session_state.excel_file = None
-if 'column_mapping' not in st.session_state:
-    st.session_state.column_mapping = {
-        'date': 'Datum',
-        'total': 'Celková částka',
-        'payment_method': 'Způsob platby',
-        'merchant': 'Obchodník',
-        'receipt_number': 'Číslo účtenky'
+if 'receipt_categories' not in st.session_state:
+    st.session_state.receipt_categories = {
+        'pohonne_hmoty': 'Pohonné hmoty',
+        'mytne': 'Mýtné',
+        'bydleni': 'Bydlení',
+        'ostatni': 'Ostatní'
     }
+if 'selected_category' not in st.session_state:
+    st.session_state.selected_category = 'pohonne_hmoty'
 
 def get_svg_content():
     try:
@@ -55,7 +54,7 @@ def get_svg_content():
         print(f"Error loading SVG: {str(e)}")
         return '<div style="color:#2196F3;font-weight:bold;font-size:24px;margin:10px;">SkenÚčtenek</div>'
 
-# Language selector in sidebar
+# Sidebar with categories
 with st.sidebar:
     try:
         st.markdown(get_svg_content(), unsafe_allow_html=True)
@@ -63,39 +62,39 @@ with st.sidebar:
         # Fallback if the markdown fails
         print(f"Error displaying SVG: {str(e)}")
         st.write("SkenÚčtenek")
-    st.title(get_text('app_name', st.session_state.language))
+    st.title("SkenÚčtenek")
     
-    selected_language = st.selectbox(
-        get_text('select_language', st.session_state.language),
-        options=LANGUAGES,
-        format_func=lambda x: LANGUAGE_NAMES[x],
-        index=LANGUAGES.index(st.session_state.language)
+    st.subheader("Kategorie účtenek")
+    category = st.radio(
+        "Vyberte kategorii účtenky",
+        options=list(st.session_state.receipt_categories.keys()),
+        format_func=lambda x: st.session_state.receipt_categories[x]
     )
     
-    if selected_language != st.session_state.language:
-        st.session_state.language = selected_language
+    if category != st.session_state.selected_category:
+        st.session_state.selected_category = category
         st.rerun()
 
 # Main app
-st.title(get_text('app_name', st.session_state.language))
+st.title(get_text('app_name', 'cs'))
 
 # Navigation
 tabs = st.tabs([
-    get_text('scan_tab', st.session_state.language),
-    get_text('history_tab', st.session_state.language),
-    get_text('export_tab', st.session_state.language),
-    get_text('settings_tab', st.session_state.language)
+    get_text('scan_tab', 'cs'),
+    get_text('history_tab', 'cs'),
+    get_text('export_tab', 'cs'),
+    get_text('settings_tab', 'cs')
 ])
 
 # SCAN TAB
 with tabs[0]:
-    st.header(get_text('scan_receipt', st.session_state.language))
+    st.header(get_text('scan_receipt', 'cs'))
     
     # Camera input for capturing receipt
-    camera_image = st.camera_input(get_text('take_photo', st.session_state.language))
+    camera_image = st.camera_input(get_text('take_photo', 'cs'))
     
     # Alternatively, allow file upload
-    uploaded_file = st.file_uploader(get_text('upload_receipt', st.session_state.language), 
+    uploaded_file = st.file_uploader(get_text('upload_receipt', 'cs'), 
                                      type=["jpg", "jpeg", "png"])
     
     # Process the image (from camera or upload)
@@ -107,7 +106,7 @@ with tabs[0]:
     
     if receipt_image is not None:
         # Display spinner during processing
-        with st.spinner(get_text('processing_receipt', st.session_state.language)):
+        with st.spinner(get_text('processing_receipt', 'cs')):
             # Convert to OpenCV format
             image = Image.open(receipt_image)
             image_np = np.array(image)
@@ -120,56 +119,79 @@ with tabs[0]:
             gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
             _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
             
-            # Perform OCR based on the selected language
-            ocr_lang = 'ces' if st.session_state.language == 'cs' else ('fra' if st.session_state.language == 'fr' else 'deu')
-            extracted_text = perform_ocr(thresh, ocr_lang)
+            # Try OCR with all supported languages to find the best match
+            languages = ['ces', 'fra', 'deu']
+            best_text = ""
+            detected_language = 'cs'  # Default to Czech
             
-            # Extract receipt information
-            receipt_info = extract_receipt_info(extracted_text, st.session_state.language)
+            # Create progress bar for language detection
+            lang_progress = st.progress(0)
+            
+            for i, lang_code in enumerate(languages):
+                lang_name = "češtiny" if lang_code == 'ces' else ("francouzštiny" if lang_code == 'fra' else "němčiny")
+                st.write(f"Zkouším rozpoznat text pomocí {lang_name}...")
+                lang_progress.progress((i+1)/len(languages))
+                
+                # Try OCR with this language
+                text = perform_ocr(thresh, lang_code)
+                
+                # If text is recognized, remember it and the language
+                if text and len(text) > len(best_text):
+                    best_text = text
+                    detected_language = 'cs' if lang_code == 'ces' else ('fr' if lang_code == 'fra' else 'de')
+            
+            # Use the best detected language for further processing
+            extracted_text = best_text
+            
+            # Extract receipt information with the detected language
+            receipt_info = extract_receipt_info(extracted_text, detected_language)
+            
+            # Show detected language
+            st.success(f"Detekován jazyk účtenky: {detected_language == 'cs' and 'Čeština' or (detected_language == 'fr' and 'Francouzština' or 'Němčina')}")
             
             # Store current receipt in session state
             st.session_state.current_receipt = receipt_info
         
         # Display results and allow editing
-        st.subheader(get_text('extracted_info', st.session_state.language))
+        st.subheader(get_text('extracted_info', 'cs'))
         
         # Form for editing extracted information
         with st.form(key='receipt_form'):
             col1, col2 = st.columns(2)
             
             with col1:
-                merchant = st.text_input(get_text('merchant', st.session_state.language), 
+                merchant = st.text_input(get_text('merchant', 'cs'), 
                                       value=receipt_info.get('merchant', ''))
-                date = st.date_input(get_text('date', st.session_state.language), 
+                date = st.date_input(get_text('date', 'cs'), 
                                    value=receipt_info.get('date', datetime.now()))
-                receipt_number = st.text_input(get_text('receipt_number', st.session_state.language), 
+                receipt_number = st.text_input(get_text('receipt_number', 'cs'), 
                                              value=receipt_info.get('receipt_number', ''))
             
             with col2:
-                total = st.number_input(get_text('total', st.session_state.language), 
+                total = st.number_input(get_text('total', 'cs'), 
                                      value=float(receipt_info.get('total', 0.0)),
                                      min_value=0.0,
                                      step=0.01,
                                      format="%.2f")
                 
                 payment_options = [
-                    get_text('cash', st.session_state.language),
-                    get_text('card', st.session_state.language),
-                    get_text('other', st.session_state.language)
+                    get_text('cash', 'cs'),
+                    get_text('card', 'cs'),
+                    get_text('other', 'cs')
                 ]
                 payment_method = st.selectbox(
-                    get_text('payment_method', st.session_state.language),
+                    get_text('payment_method', 'cs'),
                     options=payment_options,
                     index=payment_options.index(receipt_info.get('payment_method', payment_options[0])) 
                     if receipt_info.get('payment_method') in payment_options else 0
                 )
             
             # Raw OCR text for reference
-            with st.expander(get_text('show_ocr_text', st.session_state.language)):
+            with st.expander(get_text('show_ocr_text', 'cs')):
                 st.text_area("OCR Text", extracted_text, height=200)
             
             # Save button
-            submitted = st.form_submit_button(get_text('save_receipt', st.session_state.language))
+            submitted = st.form_submit_button(get_text('save_receipt', 'cs'))
             
             if submitted:
                 try:
@@ -190,7 +212,7 @@ with tabs[0]:
                     
                     # Safely append the receipt
                     st.session_state.receipts.append(updated_receipt)
-                    st.success(get_text('receipt_saved', st.session_state.language))
+                    st.success(get_text('receipt_saved', 'cs'))
                     
                     # Clear current receipt
                     st.session_state.current_receipt = None
