@@ -104,8 +104,10 @@ def format_main_sheet(writer, df):
         
         # Add formatting to header row
         for cell in worksheet[1]:
-            cell.font = writer.book.styles['Heading 1'].font
-            cell.alignment = cell.alignment.copy(horizontal='center')
+            # Create bold font for header
+            from openpyxl.styles import Font, Alignment
+            cell.font = Font(bold=True, size=12)
+            cell.alignment = Alignment(horizontal='center')
     except Exception as e:
         print(f"Error formatting Excel worksheet: {str(e)}")
 
