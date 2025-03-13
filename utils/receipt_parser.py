@@ -64,8 +64,11 @@ def extract_receipt_info(text, language='cs'):
                 
     # If no merchant found by keywords, use the first line approach
     if not merchant_found and lines:
-        # Skip empty or very short lines
-        valid_lines = [line for line in lines[:5] if len(line.strip()) > 3 and not re.match(r'^\d+$', line.strip())]
+        # Skip empty or very short lines and avoid using total-related terms as merchant name
+        total_terms = ['celkem', 'total', 'suma', 'součet', 'gesamt', 'summe', 'montant', 'somme']
+        valid_lines = [line for line in lines[:5] if len(line.strip()) > 3 
+                       and not re.match(r'^\d+$', line.strip())
+                       and not any(term in line.strip().lower() for term in total_terms)]
         if valid_lines:
             # Most often first non-empty line that doesn't look like a date or number
             result['merchant'] = valid_lines[0].strip()
