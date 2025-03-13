@@ -246,15 +246,8 @@ def extract_receipt_info(text, language='cs'):
         
         for pattern in pattern_list:
             if re.search(pattern, text, re.IGNORECASE):
-                # Get appropriate translation for the payment method based on language
-                if language == 'cs':
-                    result['payment_method'] = 'Hotovost' if payment_type == 'cash' else 'Kartou' if payment_type == 'card' else 'Jiné'
-                elif language == 'fr':
-                    result['payment_method'] = 'Espèces' if payment_type == 'cash' else 'Carte' if payment_type == 'card' else 'Autre'
-                elif language == 'de':
-                    result['payment_method'] = 'Bargeld' if payment_type == 'cash' else 'Karte' if payment_type == 'card' else 'Andere'
-                else:
-                    result['payment_method'] = 'Cash' if payment_type == 'cash' else 'Card' if payment_type == 'card' else 'Other'
+                # Always use standardized payment method names for consistent cell mapping
+                result['payment_method'] = 'Hotovost' if payment_type == 'cash' else 'Kartou' if payment_type == 'card' else 'Jiné'
                 
                 payment_found = True
                 break
@@ -274,15 +267,33 @@ def extract_receipt_info(text, language='cs'):
     purpose_words = get_words('purpose', language)
     purpose_found = False
     
-    # First check for common fuel-related keywords in any language
-    fuel_keywords = ['benzin', 'nafta', 'diesel', 'natural95', 'natural 95', 'natural 98', 
-                    'palivo', 'phm', 'gasoline', 'fuel', 'tanken', 'kraftstoff', 'carburant', 'essence']
+    # Check for special purpose categories (fuel, toll, accommodation)
+    fuel_words = get_words('fuel', language)
+    toll_words = get_words('toll', language)
+    accommodation_words = get_words('accommodation', language)
     
-    for keyword in fuel_keywords:
+    # Check for fuel-related keywords
+    for keyword in fuel_words:
         if keyword.lower() in text.lower():
             result['purpose'] = 'Pohonné hmoty'
             purpose_found = True
             break
+    
+    # Check for toll-related keywords if no fuel match
+    if not purpose_found:
+        for keyword in toll_words:
+            if keyword.lower() in text.lower():
+                result['purpose'] = 'Mýtné'
+                purpose_found = True
+                break
+    
+    # Check for accommodation-related keywords if no fuel or toll match
+    if not purpose_found:
+        for keyword in accommodation_words:
+            if keyword.lower() in text.lower():
+                result['purpose'] = 'Bydlení'
+                purpose_found = True
+                break
     
     # If not found yet, try with user wordlist
     if not purpose_found:

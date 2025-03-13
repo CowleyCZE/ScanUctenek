@@ -1,3 +1,4 @@
+
 {
   "date": {
     "cs": [
@@ -181,6 +182,121 @@
       "beschreibung",
       "artikel",
       "bezeichnung"
+    ]
+  },
+  "fuel": {
+    "cs": [
+      "pohonné hmoty",
+      "phm",
+      "palivo",
+      "natural",
+      "benzin",
+      "benzín",
+      "nafta",
+      "diesel",
+      "natankováno",
+      "čerpací stanice",
+      "čerpací st.",
+      "tankování",
+      "tankovat",
+      "shell",
+      "mol",
+      "omv",
+      "benzina",
+      "orlen",
+      "lpg"
+    ],
+    "fr": [
+      "carburant",
+      "essence",
+      "diesel",
+      "gazole",
+      "station-service",
+      "station service",
+      "plein",
+      "super",
+      "sans plomb"
+    ],
+    "de": [
+      "kraftstoff",
+      "benzin",
+      "diesel",
+      "tanken",
+      "tankstelle",
+      "zapfsäule",
+      "super",
+      "e10",
+      "autogas"
+    ]
+  },
+  "toll": {
+    "cs": [
+      "mýtné",
+      "mýto",
+      "dálniční známka",
+      "dálniční poplatek",
+      "poplatek za dálnici",
+      "dálnice",
+      "poplatek",
+      "emyto",
+      "e-myto",
+      "známka",
+      "elektronické mýto"
+    ],
+    "fr": [
+      "péage",
+      "autoroute",
+      "vignette",
+      "taxe routière",
+      "frais d'autoroute"
+    ],
+    "de": [
+      "maut",
+      "autobahngebühr",
+      "vignette",
+      "straßengebühr",
+      "autobahnmaut",
+      "e-vignette"
+    ]
+  },
+  "accommodation": {
+    "cs": [
+      "ubytování",
+      "hotel",
+      "penzion",
+      "motel",
+      "nocleh",
+      "apartmán",
+      "pokoj",
+      "aparthotel",
+      "apartmány",
+      "hostel",
+      "lůžko",
+      "nocování",
+      "noclehárna",
+      "bydlení"
+    ],
+    "fr": [
+      "hébergement",
+      "hôtel",
+      "pension",
+      "motel",
+      "chambre",
+      "appartement",
+      "gîte",
+      "auberge",
+      "logement"
+    ],
+    "de": [
+      "unterkunft",
+      "hotel",
+      "pension",
+      "motel",
+      "zimmer",
+      "appartement",
+      "ferienwohnung",
+      "gasthaus",
+      "übernachtung"
     ]
   }
 }

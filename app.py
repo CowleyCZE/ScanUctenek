@@ -64,14 +64,14 @@ with st.sidebar:
         print(f"Error displaying SVG: {str(e)}")
         st.write("SkenÚčtenek")
     st.title("SkenÚčtenek")
-    
+
     st.subheader("Kategorie účtenek")
     category = st.radio(
         "Vyberte kategorii účtenky",
         options=list(st.session_state.receipt_categories.keys()),
         format_func=lambda x: st.session_state.receipt_categories[x]
     )
-    
+
     if category != st.session_state.selected_category:
         st.session_state.selected_category = category
         st.rerun()
@@ -90,76 +90,76 @@ tabs = st.tabs([
 # SCAN TAB
 with tabs[0]:
     st.header(get_text('scan_receipt', 'cs'))
-    
+
     # Camera input for capturing receipt
     camera_image = st.camera_input(get_text('take_photo', 'cs'))
-    
+
     # Alternatively, allow file upload
     uploaded_file = st.file_uploader(get_text('upload_receipt', 'cs'), 
                                      type=["jpg", "jpeg", "png"])
-    
+
     # Process the image (from camera or upload)
     receipt_image = None
     if camera_image is not None:
         receipt_image = camera_image
     elif uploaded_file is not None:
         receipt_image = uploaded_file
-    
+
     if receipt_image is not None:
         # Display spinner during processing
         with st.spinner(get_text('processing_receipt', 'cs')):
             # Convert to OpenCV format
             image = Image.open(receipt_image)
             image_np = np.array(image)
-            
+
             # Convert RGB to BGR (if needed)
             if len(image_np.shape) == 3 and image_np.shape[2] == 3:
                 image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-            
+
             # Preprocess the image for better OCR results
             gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
             _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-            
+
             # Try OCR with all supported languages to find the best match
             languages = ['ces', 'fra', 'deu']
             best_text = ""
             detected_language = 'cs'  # Default to Czech
-            
+
             # Create progress bar for language detection
             lang_progress = st.progress(0)
-            
+
             for i, lang_code in enumerate(languages):
                 lang_name = "češtiny" if lang_code == 'ces' else ("francouzštiny" if lang_code == 'fra' else "němčiny")
                 st.write(f"Zkouším rozpoznat text pomocí {lang_name}...")
                 lang_progress.progress((i+1)/len(languages))
-                
+
                 # Try OCR with this language
                 text = perform_ocr(thresh, lang_code)
-                
+
                 # If text is recognized, remember it and the language
                 if text and len(text) > len(best_text):
                     best_text = text
                     detected_language = 'cs' if lang_code == 'ces' else ('fr' if lang_code == 'fra' else 'de')
-            
+
             # Use the best detected language for further processing
             extracted_text = best_text
-            
+
             # Extract receipt information with the detected language
             receipt_info = extract_receipt_info(extracted_text, detected_language)
-            
+
             # Show detected language
             st.success(f"Detekován jazyk účtenky: {detected_language == 'cs' and 'Čeština' or (detected_language == 'fr' and 'Francouzština' or 'Němčina')}")
-            
+
             # Store current receipt in session state
             st.session_state.current_receipt = receipt_info
-        
+
         # Display results and allow editing
         st.subheader(get_text('extracted_info', 'cs'))
-        
+
         # Form for editing extracted information
         with st.form(key='receipt_form'):
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 merchant = st.text_input(get_text('merchant', 'cs'), 
                                       value=receipt_info.get('merchant', ''))
@@ -167,36 +167,36 @@ with tabs[0]:
                                    value=receipt_info.get('date', datetime.now()))
                 receipt_number = st.text_input(get_text('receipt_number', 'cs'), 
                                              value=receipt_info.get('receipt_number', ''))
-                
+
                 # Kategorie účtenky
                 category_options = list(st.session_state.receipt_categories.keys())
                 category_display = [st.session_state.receipt_categories[k] for k in category_options]
                 category_index = 0  # Default to first category
-                
+
                 if 'category' in receipt_info and receipt_info['category'] in category_options:
                     category_index = category_options.index(receipt_info['category'])
-                
+
                 category = st.selectbox(
                     get_text('category', 'cs'),
                     options=category_options,
                     index=category_index,
                     format_func=lambda x: st.session_state.receipt_categories[x]
                 )
-            
+
             with col2:
                 total = st.number_input(get_text('total', 'cs'), 
                                      value=float(receipt_info.get('total', 0.0)),
                                      min_value=0.0,
                                      step=0.01,
                                      format="%.2f")
-                
+
                 # Měna
                 currency = st.selectbox(
                     get_text('currency', 'cs'),
                     options=st.session_state.currencies,
                     index=0 if receipt_info.get('currency', 'CZK') == 'CZK' else 1
                 )
-                
+
                 payment_options = [
                     get_text('cash', 'cs'),
                     get_text('card', 'cs'),
@@ -208,20 +208,20 @@ with tabs[0]:
                     index=payment_options.index(receipt_info.get('payment_method', payment_options[0])) 
                     if receipt_info.get('payment_method') in payment_options else 0
                 )
-                
+
             # Značky
             st.subheader(get_text('tags', 'cs'))
-            
+
             # Existující značky
             existing_tags = receipt_info.get('tags', [])
-            
+
             # Text input pro novou značku
             new_tag = st.text_input(get_text('add_tag', 'cs'))
-            
+
             # Zobrazení existujících značek jako chips s možností odstranění
             tag_cols = st.columns(4)  # Až 4 značky na řádek
             updated_tags = []
-            
+
             for i, tag in enumerate(existing_tags):
                 col_idx = i % 4
                 with tag_cols[col_idx]:
@@ -230,18 +230,18 @@ with tabs[0]:
                         pass
                     else:
                         updated_tags.append(tag)
-            
+
             # Přidání nové značky, pokud byla zadána
             if new_tag and new_tag not in updated_tags:
                 updated_tags.append(new_tag)
-            
+
             # Raw OCR text for reference
             with st.expander(get_text('show_ocr_text', 'cs')):
                 st.text_area("OCR Text", extracted_text, height=200)
-            
+
             # Save button
             submitted = st.form_submit_button(get_text('save_receipt', 'cs'))
-            
+
             if submitted:
                 try:
                     # Update receipt information with error handling
@@ -257,18 +257,18 @@ with tabs[0]:
                         'ocr_text': str(extracted_text) if extracted_text else '',
                         'timestamp': datetime.now()
                     }
-                    
+
                     # Add to receipts list - ensure we're adding a valid object
                     if not hasattr(st.session_state, 'receipts') or st.session_state.receipts is None:
                         st.session_state.receipts = []
-                    
+
                     # Safely append the receipt
                     st.session_state.receipts.append(updated_receipt)
                     st.success(get_text('receipt_saved', 'cs'))
-                    
+
                     # Clear current receipt
                     st.session_state.current_receipt = None
-                    
+
                     # Show success message and clean up
                     st.balloons()
                 except Exception as e:
@@ -282,7 +282,7 @@ with tabs[0]:
 # HISTORY TAB
 with tabs[1]:
     st.header(get_text('receipt_history', 'cs'))
-    
+
     if not st.session_state.receipts:
         st.info(get_text('no_receipts', 'cs'))
     else:
@@ -296,35 +296,35 @@ with tabs[1]:
                         date_str = receipt['date'].strftime('%d.%m.%Y') if isinstance(receipt['date'], datetime) else str(receipt.get('date', 'N/A'))
                     except Exception:
                         date_str = 'N/A'
-                    
+
                     try:
                         total_str = f"{float(receipt.get('total', 0.0)):.2f}"
                     except Exception:
                         total_str = '0.00'
-                    
+
                     # Získat název kategorie pro zobrazení
                     category_key = receipt.get('category', 'other')
                     category_display = st.session_state.receipt_categories.get(category_key, get_text('category_other', 'cs'))
-                    
+
                     # Formátování měny
                     currency = receipt.get('currency', 'CZK')
                     currency_symbol = '€' if currency == 'EUR' else 'Kč' 
-                    
+
                     # Create the expander with safe formatting including category
                     with st.expander(f"{merchant} - {date_str} - {total_str} {currency_symbol} - {category_display}"):
                         col1, col2 = st.columns(2)
-                        
+
                         with col1:
                             st.write(f"**{get_text('merchant', 'cs')}:** {merchant}")
                             st.write(f"**{get_text('date', 'cs')}:** {date_str}")
                             st.write(f"**{get_text('receipt_number', 'cs')}:** {receipt.get('receipt_number', 'N/A')}")
                             st.write(f"**{get_text('category', 'cs')}:** {category_display}")
-                        
+
                         with col2:
                             st.write(f"**{get_text('total', 'cs')}:** {total_str} {currency_symbol}")
                             st.write(f"**{get_text('payment_method', 'cs')}:** {receipt.get('payment_method', 'N/A')}")
                             st.write(f"**{get_text('currency', 'cs')}:** {currency}")
-                            
+
                         # Zobrazení značek jako "chips"
                         if receipt.get('tags'):
                             st.write(f"**{get_text('tags', 'cs')}:**")
@@ -332,7 +332,7 @@ with tabs[1]:
                             for tag in receipt.get('tags', []):
                                 tags_html += f'<span style="display: inline-block; background-color: #e0e0e0; padding: 2px 10px; margin: 2px; border-radius: 10px;">{tag}</span>'
                             st.markdown(tags_html, unsafe_allow_html=True)
-                        
+
                         # Delete receipt button with error handling
                         if st.button(get_text('delete', 'cs'), key=f"delete_{idx}"):
                             try:
@@ -361,7 +361,7 @@ with tabs[1]:
 # EXPORT TAB
 with tabs[2]:
     st.header(get_text('export_to_excel', 'cs'))
-    
+
     if not st.session_state.receipts:
         st.info(get_text('no_receipts_to_export', 'cs'))
     else:
@@ -371,17 +371,17 @@ with tabs[2]:
                 get_text('excel_filename', 'cs'),
                 value="receipts.xlsx"
             )
-            
+
             # Ensure filename has proper extension
             if not filename.endswith('.xlsx'):
                 filename += '.xlsx'
-            
+
             # Column mapping
             st.subheader(get_text('column_mapping', 'cs'))
-            
+
             col_mapping = {}
             col1, col2 = st.columns(2)
-            
+
             # Make sure default mapping exists
             if not hasattr(st.session_state, 'column_mapping') or not st.session_state.column_mapping:
                 st.session_state.column_mapping = {
@@ -394,7 +394,7 @@ with tabs[2]:
                     'category': 'Kategorie',
                     'tags': 'Značky'
                 }
-            
+
             with col1:
                 col_mapping['date'] = st.text_input(
                     get_text('date_column', 'cs'),
@@ -412,7 +412,7 @@ with tabs[2]:
                     get_text('payment_method_column', 'cs'),
                     value=st.session_state.column_mapping.get('payment_method', 'Způsob platby')
                 )
-            
+
             with col2:
                 col_mapping['merchant'] = st.text_input(
                     get_text('merchant_column', 'cs'),
@@ -430,23 +430,23 @@ with tabs[2]:
                     get_text('tags', 'cs'),
                     value=st.session_state.column_mapping.get('tags', 'Značky')
                 )
-            
+
             # Update column mapping in session state
             st.session_state.column_mapping = col_mapping
-            
+
             # Export button
             if st.button(get_text('export', 'cs')):
                 try:
                     with st.spinner(get_text('exporting', 'cs')):
                         # Convert receipts to DataFrame and export
                         excel_buffer = export_to_excel(st.session_state.receipts, st.session_state.column_mapping)
-                        
+
                         # Create download link
                         b64 = base64.b64encode(excel_buffer.getvalue()).decode()
                         download_button_style = "display:inline-block; padding:10px 20px; background-color:#4CAF50; color:white; text-decoration:none; border-radius:4px; margin:10px 0;"
                         href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}" style="{download_button_style}">{get_text("download_excel", "cs")}</a>'
                         st.markdown(href, unsafe_allow_html=True)
-                        
+
                         st.success(get_text('export_success', 'cs'))
                 except Exception as e:
                     st.error(f"Chyba při exportu: {str(e)}")
@@ -458,24 +458,24 @@ with tabs[2]:
 # SETTINGS TAB
 with tabs[3]:
     st.header(get_text('settings', 'cs'))
-    
+
     # Create sub-tabs for settings
     settings_tabs = st.tabs([
         "Základní nastavení", 
         "Správa wordlistů", 
         "O aplikaci"
     ])
-    
+
     # Basic settings tab
     with settings_tabs[0]:
         # Reset data option
         st.subheader(get_text('reset_data', 'cs'))
-        
+
         if st.button(get_text('clear_all_receipts', 'cs'), type="primary"):
             if st.session_state.receipts:
                 # Confirmation
                 confirm = st.checkbox(get_text('confirm_delete', 'cs'))
-                
+
                 if confirm:
                     st.session_state.receipts = []
                     st.session_state.current_receipt = None
@@ -483,17 +483,17 @@ with tabs[3]:
                     st.rerun()
             else:
                 st.info(get_text('no_receipts_to_delete', 'cs'))
-    
+
     # Wordlist management tab
     with settings_tabs[1]:
         from utils.word_lists import get_all_fields, get_all_languages, get_words, add_word, remove_word, reset_wordlist
-        
+
         st.subheader("Správa slovníků pro rozpoznávání účtenek")
         st.write("Zde můžete spravovat slovníky klíčových slov, která aplikace využívá pro lepší rozpoznávání údajů v účtenkách.")
-        
+
         # Dropdown to select field and language
         wordlist_col1, wordlist_col2 = st.columns(2)
-        
+
         with wordlist_col1:
             selected_field = st.selectbox(
                 "Vyberte datové pole:",
@@ -507,7 +507,7 @@ with tabs[3]:
                     'purpose': 'Účel'
                 }.get(x, x)
             )
-        
+
         with wordlist_col2:
             selected_language = st.selectbox(
                 "Vyberte jazyk:",
@@ -518,11 +518,11 @@ with tabs[3]:
                     'de': 'Němčina'
                 }.get(x, x)
             )
-        
+
         # Show current wordlist
         st.subheader(f"Aktuální slova pro pole '{selected_field}' v jazyce '{selected_language}':")
         words = get_words(selected_field, selected_language)
-        
+
         # Display current words as "chips" with remove option
         if words:
             word_cols = st.columns(3)
@@ -537,11 +537,11 @@ with tabs[3]:
                             st.error(f"Nepodařilo se odstranit slovo '{word}'.")
         else:
             st.info("Pro toto pole a jazyk zatím nejsou definována žádná slova.")
-        
+
         # Add new word
         st.subheader("Přidat nové slovo:")
         new_word = st.text_input("Zadejte nové slovo", key=f"new_word_{selected_field}_{selected_language}")
-        
+
         if st.button("Přidat", key=f"add_{selected_field}_{selected_language}"):
             if new_word:
                 if add_word(selected_field, selected_language, new_word):
@@ -551,11 +551,11 @@ with tabs[3]:
                     st.error(f"Nepodařilo se přidat slovo '{new_word}'.")
             else:
                 st.warning("Zadejte slovo, které chcete přidat.")
-        
+
         # Reset wordlist option
         st.subheader("Resetovat slovník")
         reset_cols = st.columns(3)
-        
+
         with reset_cols[0]:
             if st.button(f"Resetovat pole '{selected_field}' pro jazyk '{selected_language}'"):
                 if reset_wordlist(selected_field, selected_language):
@@ -563,7 +563,7 @@ with tabs[3]:
                     st.rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovník.")
-                    
+
         with reset_cols[1]:
             if st.button(f"Resetovat celé pole '{selected_field}'"):
                 if reset_wordlist(selected_field):
@@ -571,7 +571,7 @@ with tabs[3]:
                     st.rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovník.")
-        
+
         with reset_cols[2]:
             if st.button("Resetovat všechny slovníky"):
                 if reset_wordlist():
@@ -579,22 +579,22 @@ with tabs[3]:
                     st.rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovníky.")
-    
+
     # About tab
     with settings_tabs[2]:
         st.subheader(get_text('about_app', 'cs'))
         st.write(get_text('app_description', 'cs'))
-        
+
         st.markdown("""
         ## Více informací
-        
+
         SkenÚčtenek je aplikace pro digitalizaci účtenek a zjednodušení správy výdajů.
-        
+
         ### Podporované jazyky pro rozpoznávání účtenek:
         - Čeština
         - Francouzština
         - Němčina
-        
+
         ### Funkce aplikace:
         - Automatické rozpoznání jazyka účtenek
         - Extrakce klíčových údajů (datum, částka, měna, obchodník)
@@ -602,7 +602,7 @@ with tabs[3]:
         - Export do Excel
         - Správa vlastních slovníků pro lepší rozpoznávání
         """)
-        
+
         st.info("Pro nejlepší výsledky rozpoznávání doporučujeme používat jasné a kvalitní fotografie účtenek.")
 
 # Footer
