@@ -10,16 +10,14 @@ logger = logging.getLogger(__name__)
 def extract_receipt_info(text, language='cs'):
     """
     Extract relevant information from receipt text
-    
     Args:
         text: OCR extracted text from receipt
         language: Language code ('cs', 'fr', 'de')
-    
     Returns:
         Dictionary with extracted information
     """
     logger.info(f"Extracting receipt information from text in language: {language}")
-    
+
     # Initialize result dictionary
     result = {
         'merchant': '',
@@ -30,14 +28,14 @@ def extract_receipt_info(text, language='cs'):
         'currency': 'CZK' if language == 'cs' else 'EUR',
         'purpose': ''
     }
-    
+
     # Normalize the text - fix common OCR errors
-    text = text.replace('|', '1').replace('O', '0').replace('o', '0')
-    
+    text = text.replace('|', '1')  # Nahrazení pouze svislých čar, odstraněno nahrazování O a o
+
     # Get user-defined wordlists
     merchant_words = get_words('merchant', language)
     purpose_words = get_words('purpose', language)
-    
+
     # Extract merchant name (looking for merchant-related keywords or using the first few lines)
     lines = text.strip().split('\n')
     
@@ -46,7 +44,7 @@ def extract_receipt_info(text, language='cs'):
     for i, line in enumerate(lines):
         if i >= 10:  # Only check first 10 lines
             break
-            
+        
         # Check if any merchant keyword is in this line
         if any(word.lower() in line.lower() for word in merchant_words):
             # Extract the text after the keyword
@@ -58,17 +56,18 @@ def extract_receipt_info(text, language='cs'):
                         result['merchant'] = merchant_text.strip('.: ')
                         merchant_found = True
                         break
-            
-            if merchant_found:
-                break
-                
+        
+        if merchant_found:
+            break
+
     # If no merchant found by keywords, use the first line approach
     if not merchant_found and lines:
         # Skip empty or very short lines and avoid using total-related terms as merchant name
         total_terms = ['celkem', 'total', 'suma', 'součet', 'gesamt', 'summe', 'montant', 'somme']
         valid_lines = [line for line in lines[:5] if len(line.strip()) > 3 
-                       and not re.match(r'^\d+$', line.strip())
-                       and not any(term in line.strip().lower() for term in total_terms)]
+                     and not re.match(r'^\d+$', line.strip()) 
+                     and not any(term in line.strip().lower() for term in total_terms)]
+        
         if valid_lines:
             # Most often first non-empty line that doesn't look like a date or number
             result['merchant'] = valid_lines[0].strip()
@@ -79,8 +78,8 @@ def extract_receipt_info(text, language='cs'):
     # Create dynamic date patterns based on user wordlist
     date_patterns = {
         'cs': [r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})'],  # Default pattern for Czech: DD.MM.YYYY or DD.MM.YY
-        'fr': [r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{2,4})'],  # Default pattern for French: DD/MM/YYYY or DD-MM-YYYY 
-        'de': [r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})']   # Default pattern for German: DD.MM.YYYY
+        'fr': [r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{2,4})'],  # Default pattern for French: DD/MM/YYYY or DD-MM-YYYY
+        'de': [r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})']  # Default pattern for German: DD.MM.YYYY
     }
     
     # Add patterns based on user wordlist keywords
@@ -99,9 +98,11 @@ def extract_receipt_info(text, language='cs'):
         date_matches = re.search(pattern, text, re.IGNORECASE)
         if date_matches:
             day, month, year = date_matches.groups()
+            
             # Handle 2-digit years
             if len(year) == 2:
                 year = '20' + year
+            
             try:
                 # Validate date values
                 day_val = int(day)
@@ -157,9 +158,11 @@ def extract_receipt_info(text, language='cs'):
         for word in get_words('total', lang):
             # Clean and escape the keyword for regex
             word_clean = re.escape(word.strip())
+            
             total_patterns[lang].append(
-                f"{word_clean}:?\\s*(?:{curr_pattern})?\.?\\s*(\\d+[.,]\\d{{2}})"
+                f"{word_clean}:?\\s*(?:{curr_pattern})?\\.?\\s*(\\d+[.,]\\d{{2}})"  # Opravena escape sekvence \. na \\.
             )
+            
             total_patterns[lang].append(
                 f"{word_clean}:?\\s*[^\\d]?(\\d+[.,]\\d{{2}})(?:\\s*(?:{curr_pattern}))?"
             )
@@ -186,7 +189,7 @@ def extract_receipt_info(text, language='cs'):
             if largest_total > 0:
                 result['total'] = largest_total
                 break
-                
+    
     # Detect currency - check for currency keywords in text
     if language == 'cs':
         # Default for Czech is CZK
@@ -227,6 +230,7 @@ def extract_receipt_info(text, language='cs'):
     # Categorize payment methods by keyword analysis
     for word in payment_words:
         word_lower = word.lower()
+        
         # Try to categorize the payment keyword
         if any(cash_word in word_lower for cash_word in ['hotov', 'cash', 'espèce', 'espece', 'bar', 'bargeld']):
             payment_patterns[language]['cash'].append(re.escape(word))
@@ -248,7 +252,6 @@ def extract_receipt_info(text, language='cs'):
             if re.search(pattern, text, re.IGNORECASE):
                 # Always use standardized payment method names for consistent cell mapping
                 result['payment_method'] = 'Hotovost' if payment_type == 'cash' else 'Kartou' if payment_type == 'card' else 'Jiné'
-                
                 payment_found = True
                 break
     
@@ -262,7 +265,7 @@ def extract_receipt_info(text, language='cs'):
             result['payment_method'] = 'Bargeld'
         else:
             result['payment_method'] = 'Cash'
-            
+    
     # Try to detect purpose (what the receipt is for) using the purpose wordlist
     purpose_words = get_words('purpose', language)
     purpose_found = False
@@ -311,6 +314,7 @@ def extract_receipt_info(text, language='cs'):
                             result['purpose'] = purpose_text.capitalize()
                             purpose_found = True
                             break
+                
                 if purpose_found:
                     break
     
