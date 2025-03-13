@@ -257,6 +257,73 @@ TRANSLATIONS = {
         'cs': 'Nemáte žádné účtenky ke smazání.',
         'fr': 'Vous n\'avez pas de reçus à supprimer.',
         'de': 'Sie haben keine Belege zum Löschen.'
+    },
+    
+    # Categories and Tags
+    'category': {
+        'cs': 'Kategorie',
+        'fr': 'Catégorie',
+        'de': 'Kategorie'
+    },
+    'tags': {
+        'cs': 'Značky',
+        'fr': 'Étiquettes',
+        'de': 'Tags'
+    },
+    'add_tag': {
+        'cs': 'Přidat značku',
+        'fr': 'Ajouter une étiquette',
+        'de': 'Tag hinzufügen'
+    },
+    'manage_categories': {
+        'cs': 'Správa kategorií',
+        'fr': 'Gérer les catégories',
+        'de': 'Kategorien verwalten'
+    },
+    'add_category': {
+        'cs': 'Přidat kategorii',
+        'fr': 'Ajouter une catégorie',
+        'de': 'Kategorie hinzufügen'
+    },
+    'category_fuel': {
+        'cs': 'Pohonné hmoty',
+        'fr': 'Carburant',
+        'de': 'Kraftstoff'
+    },
+    'category_toll': {
+        'cs': 'Mýtné',
+        'fr': 'Péage',
+        'de': 'Maut'
+    },
+    'category_accommodation': {
+        'cs': 'Ubytování',
+        'fr': 'Hébergement',
+        'de': 'Unterkunft'
+    },
+    'category_food': {
+        'cs': 'Stravování',
+        'fr': 'Restauration',
+        'de': 'Verpflegung'
+    },
+    'category_other': {
+        'cs': 'Ostatní',
+        'fr': 'Autres',
+        'de': 'Sonstiges'
+    },
+    'currency': {
+        'cs': 'Měna',
+        'fr': 'Devise',
+        'de': 'Währung'
+    },
+    'currency_czk': {
+        'cs': 'CZK (Kč)',
+        'fr': 'CZK (Kč)',
+        'de': 'CZK (Kč)'
+    },
+    'currency_eur': {
+        'cs': 'EUR (€)',
+        'fr': 'EUR (€)',
+        'de': 'EUR (€)'
     }
 }
 

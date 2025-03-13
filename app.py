@@ -31,13 +31,18 @@ if 'excel_file' not in st.session_state:
     st.session_state.excel_file = None
 if 'receipt_categories' not in st.session_state:
     st.session_state.receipt_categories = {
-        'pohonne_hmoty': 'Pohonné hmoty',
-        'mytne': 'Mýtné',
-        'bydleni': 'Bydlení',
-        'ostatni': 'Ostatní'
+        'fuel': get_text('category_fuel', 'cs'),
+        'toll': get_text('category_toll', 'cs'),
+        'accommodation': get_text('category_accommodation', 'cs'),
+        'food': get_text('category_food', 'cs'),
+        'other': get_text('category_other', 'cs')
     }
 if 'selected_category' not in st.session_state:
-    st.session_state.selected_category = 'pohonne_hmoty'
+    st.session_state.selected_category = 'fuel'
+if 'available_tags' not in st.session_state:
+    st.session_state.available_tags = []
+if 'currencies' not in st.session_state:
+    st.session_state.currencies = ['CZK', 'EUR']
 
 def get_svg_content():
     try:
@@ -162,6 +167,21 @@ with tabs[0]:
                                    value=receipt_info.get('date', datetime.now()))
                 receipt_number = st.text_input(get_text('receipt_number', 'cs'), 
                                              value=receipt_info.get('receipt_number', ''))
+                
+                # Kategorie účtenky
+                category_options = list(st.session_state.receipt_categories.keys())
+                category_display = [st.session_state.receipt_categories[k] for k in category_options]
+                category_index = 0  # Default to first category
+                
+                if 'category' in receipt_info and receipt_info['category'] in category_options:
+                    category_index = category_options.index(receipt_info['category'])
+                
+                category = st.selectbox(
+                    get_text('category', 'cs'),
+                    options=category_options,
+                    index=category_index,
+                    format_func=lambda x: st.session_state.receipt_categories[x]
+                )
             
             with col2:
                 total = st.number_input(get_text('total', 'cs'), 
@@ -169,6 +189,13 @@ with tabs[0]:
                                      min_value=0.0,
                                      step=0.01,
                                      format="%.2f")
+                
+                # Měna
+                currency = st.selectbox(
+                    get_text('currency', 'cs'),
+                    options=st.session_state.currencies,
+                    index=0 if receipt_info.get('currency', 'CZK') == 'CZK' else 1
+                )
                 
                 payment_options = [
                     get_text('cash', 'cs'),
@@ -181,6 +208,32 @@ with tabs[0]:
                     index=payment_options.index(receipt_info.get('payment_method', payment_options[0])) 
                     if receipt_info.get('payment_method') in payment_options else 0
                 )
+                
+            # Značky
+            st.subheader(get_text('tags', 'cs'))
+            
+            # Existující značky
+            existing_tags = receipt_info.get('tags', [])
+            
+            # Text input pro novou značku
+            new_tag = st.text_input(get_text('add_tag', 'cs'))
+            
+            # Zobrazení existujících značek jako chips s možností odstranění
+            tag_cols = st.columns(4)  # Až 4 značky na řádek
+            updated_tags = []
+            
+            for i, tag in enumerate(existing_tags):
+                col_idx = i % 4
+                with tag_cols[col_idx]:
+                    if not st.checkbox(f"❌ {tag}", key=f"tag_{i}", value=True):
+                        # Když je checkbox odškrtnut, tag bude odstraněn
+                        pass
+                    else:
+                        updated_tags.append(tag)
+            
+            # Přidání nové značky, pokud byla zadána
+            if new_tag and new_tag not in updated_tags:
+                updated_tags.append(new_tag)
             
             # Raw OCR text for reference
             with st.expander(get_text('show_ocr_text', 'cs')):
@@ -197,7 +250,10 @@ with tabs[0]:
                         'date': date if date else datetime.now(),
                         'receipt_number': str(receipt_number) if receipt_number else '',
                         'total': float(total) if total is not None else 0.0,
+                        'currency': str(currency) if currency else 'CZK',
                         'payment_method': str(payment_method) if payment_method else '',
+                        'category': str(category) if category else 'other',
+                        'tags': updated_tags,
                         'ocr_text': str(extracted_text) if extracted_text else '',
                         'timestamp': datetime.now()
                     }
@@ -246,18 +302,36 @@ with tabs[1]:
                     except Exception:
                         total_str = '0.00'
                     
-                    # Create the expander with safe formatting
-                    with st.expander(f"{merchant} - {date_str} - {total_str}"):
+                    # Získat název kategorie pro zobrazení
+                    category_key = receipt.get('category', 'other')
+                    category_display = st.session_state.receipt_categories.get(category_key, get_text('category_other', 'cs'))
+                    
+                    # Formátování měny
+                    currency = receipt.get('currency', 'CZK')
+                    currency_symbol = '€' if currency == 'EUR' else 'Kč' 
+                    
+                    # Create the expander with safe formatting including category
+                    with st.expander(f"{merchant} - {date_str} - {total_str} {currency_symbol} - {category_display}"):
                         col1, col2 = st.columns(2)
                         
                         with col1:
                             st.write(f"**{get_text('merchant', 'cs')}:** {merchant}")
                             st.write(f"**{get_text('date', 'cs')}:** {date_str}")
                             st.write(f"**{get_text('receipt_number', 'cs')}:** {receipt.get('receipt_number', 'N/A')}")
+                            st.write(f"**{get_text('category', 'cs')}:** {category_display}")
                         
                         with col2:
-                            st.write(f"**{get_text('total', 'cs')}:** {total_str}")
+                            st.write(f"**{get_text('total', 'cs')}:** {total_str} {currency_symbol}")
                             st.write(f"**{get_text('payment_method', 'cs')}:** {receipt.get('payment_method', 'N/A')}")
+                            st.write(f"**{get_text('currency', 'cs')}:** {currency}")
+                            
+                        # Zobrazení značek jako "chips"
+                        if receipt.get('tags'):
+                            st.write(f"**{get_text('tags', 'cs')}:**")
+                            tags_html = ""
+                            for tag in receipt.get('tags', []):
+                                tags_html += f'<span style="display: inline-block; background-color: #e0e0e0; padding: 2px 10px; margin: 2px; border-radius: 10px;">{tag}</span>'
+                            st.markdown(tags_html, unsafe_allow_html=True)
                         
                         # Delete receipt button with error handling
                         if st.button(get_text('delete', 'cs'), key=f"delete_{idx}"):
@@ -313,9 +387,12 @@ with tabs[2]:
                 st.session_state.column_mapping = {
                     'date': 'Datum',
                     'total': 'Celková částka',
+                    'currency': 'Měna',
                     'payment_method': 'Způsob platby',
                     'merchant': 'Obchodník',
-                    'receipt_number': 'Číslo účtenky'
+                    'receipt_number': 'Číslo účtenky',
+                    'category': 'Kategorie',
+                    'tags': 'Značky'
                 }
             
             with col1:
@@ -326,6 +403,10 @@ with tabs[2]:
                 col_mapping['total'] = st.text_input(
                     get_text('total_column', 'cs'),
                     value=st.session_state.column_mapping.get('total', 'Celková částka')
+                )
+                col_mapping['currency'] = st.text_input(
+                    get_text('currency', 'cs'),
+                    value=st.session_state.column_mapping.get('currency', 'Měna')
                 )
                 col_mapping['payment_method'] = st.text_input(
                     get_text('payment_method_column', 'cs'),
@@ -340,6 +421,14 @@ with tabs[2]:
                 col_mapping['receipt_number'] = st.text_input(
                     get_text('receipt_number_column', 'cs'),
                     value=st.session_state.column_mapping.get('receipt_number', 'Číslo účtenky')
+                )
+                col_mapping['category'] = st.text_input(
+                    get_text('category', 'cs'),
+                    value=st.session_state.column_mapping.get('category', 'Kategorie')
+                )
+                col_mapping['tags'] = st.text_input(
+                    get_text('tags', 'cs'),
+                    value=st.session_state.column_mapping.get('tags', 'Značky')
                 )
             
             # Update column mapping in session state
