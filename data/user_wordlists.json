@@ -42,7 +42,8 @@
       "net à payer",
       "total ttc",
       "somme",
-      "prix total"
+      "prix total",
+      "payment"
     ],
     "de": [
       "gesamt",
@@ -76,7 +77,8 @@
     "de": [
       "€",
       "eur",
-      "euro"
+      "euro",
+      "eura"
     ]
   },
   "payment_method": {
@@ -90,7 +92,8 @@
       "kartou",
       "bankovní převod",
       "v hotovosti",
-      "hotově"
+      "hotově",
+      "metoda"
     ],
     "fr": [
       "méthode de paiement",
@@ -156,7 +159,9 @@
       "popis",
       "položka",
       "název zboží",
-      "název položky"
+      "název položky",
+      "nafta",
+      "palivo"
     ],
     "fr": [
       "objet",
