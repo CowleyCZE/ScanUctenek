@@ -92,18 +92,22 @@ with tabs[0]:
     st.header(get_text('scan_receipt', 'cs'))
 
     # Camera input for capturing receipt
-    camera_image = st.camera_input(get_text('take_photo', 'cs'))
+    camera_image = st.camera_input(get_text('take_photo', 'cs'), key="camera_input")
+    if camera_image is not None:
+        st.session_state.camera_image = camera_image
 
     # Alternatively, allow file upload
     uploaded_file = st.file_uploader(get_text('upload_receipt', 'cs'), 
-                                     type=["jpg", "jpeg", "png"])
+                                     type=["jpg", "jpeg", "png"], key="file_uploader")
+    if uploaded_file is not None:
+        st.session_state.uploaded_file = uploaded_file
 
     # Process the image (from camera or upload)
     receipt_image = None
-    if camera_image is not None:
-        receipt_image = camera_image
-    elif uploaded_file is not None:
-        receipt_image = uploaded_file
+    if 'camera_image' in st.session_state and st.session_state.camera_image is not None:
+        receipt_image = st.session_state.camera_image
+    elif 'uploaded_file' in st.session_state and st.session_state.uploaded_file is not None:
+        receipt_image = st.session_state.uploaded_file
 
     if receipt_image is not None:
         # Display spinner during processing
@@ -268,7 +272,13 @@ with tabs[0]:
 
                     # Clear current receipt
                     st.session_state.current_receipt = None
-
+                    
+                    # Reset the scan tab state completely
+                    if 'camera_image' in st.session_state:
+                        del st.session_state.camera_image
+                    if 'uploaded_file' in st.session_state:
+                        del st.session_state.uploaded_file
+                    
                     # Show success message and clean up
                     st.balloons()
                 except Exception as e:
@@ -468,6 +478,36 @@ with tabs[3]:
 
     # Basic settings tab
     with settings_tabs[0]:
+        # Excel template option
+        st.subheader("Nastavení Excel šablony")
+        
+        # Initialize template path in session state if not exists
+        if 'excel_template_path' not in st.session_state:
+            st.session_state.excel_template_path = None
+            
+        # Allow user to upload a template file
+        uploaded_template = st.file_uploader("Nahrajte Excel šablonu (.xlsx)", type=["xlsx"])
+        
+        if uploaded_template is not None:
+            # Save the template file
+            import os
+            template_dir = "templates"
+            if not os.path.exists(template_dir):
+                os.makedirs(template_dir)
+                
+            template_path = os.path.join(template_dir, "user_template.xlsx")
+            with open(template_path, "wb") as f:
+                f.write(uploaded_template.getbuffer())
+                
+            st.session_state.excel_template_path = template_path
+            st.success(f"Excel šablona byla úspěšně nahrána a bude použita pro export dat.")
+            
+        # Show current template status
+        if st.session_state.excel_template_path:
+            st.info(f"Aktuálně používaná šablona: {os.path.basename(st.session_state.excel_template_path)}")
+        else:
+            st.info("Žádná šablona není nastavena. Při exportu bude vytvořen nový Excel soubor.")
+        
         # Reset data option
         st.subheader(get_text('reset_data', 'cs'))
 

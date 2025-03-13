@@ -18,6 +18,10 @@ def export_to_excel(receipts, column_mapping, template_path=None):
     Returns:
         BytesIO object containing the Excel file
     """
+    # Check for template in session state if not provided explicitly
+    import streamlit as st
+    if template_path is None and 'excel_template_path' in st.session_state and st.session_state.excel_template_path:
+        template_path = st.session_state.excel_template_path
     # Create a pandas DataFrame from the receipts for the general sheet
     receipts_data = []
     for receipt in receipts:
