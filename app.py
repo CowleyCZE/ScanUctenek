@@ -459,25 +459,151 @@ with tabs[2]:
 with tabs[3]:
     st.header(get_text('settings', 'cs'))
     
-    # App information
-    st.subheader(get_text('about_app', 'cs'))
-    st.write(get_text('app_description', 'cs'))
+    # Create sub-tabs for settings
+    settings_tabs = st.tabs([
+        "Základní nastavení", 
+        "Správa wordlistů", 
+        "O aplikaci"
+    ])
     
-    # Reset data option
-    st.subheader(get_text('reset_data', 'cs'))
+    # Basic settings tab
+    with settings_tabs[0]:
+        # Reset data option
+        st.subheader(get_text('reset_data', 'cs'))
+        
+        if st.button(get_text('clear_all_receipts', 'cs'), type="primary"):
+            if st.session_state.receipts:
+                # Confirmation
+                confirm = st.checkbox(get_text('confirm_delete', 'cs'))
+                
+                if confirm:
+                    st.session_state.receipts = []
+                    st.session_state.current_receipt = None
+                    st.success(get_text('all_receipts_deleted', 'cs'))
+                    st.rerun()
+            else:
+                st.info(get_text('no_receipts_to_delete', 'cs'))
     
-    if st.button(get_text('clear_all_receipts', 'cs'), type="primary"):
-        if st.session_state.receipts:
-            # Confirmation
-            confirm = st.checkbox(get_text('confirm_delete', 'cs'))
-            
-            if confirm:
-                st.session_state.receipts = []
-                st.session_state.current_receipt = None
-                st.success(get_text('all_receipts_deleted', 'cs'))
-                st.rerun()
+    # Wordlist management tab
+    with settings_tabs[1]:
+        from utils.word_lists import get_all_fields, get_all_languages, get_words, add_word, remove_word, reset_wordlist
+        
+        st.subheader("Správa slovníků pro rozpoznávání účtenek")
+        st.write("Zde můžete spravovat slovníky klíčových slov, která aplikace využívá pro lepší rozpoznávání údajů v účtenkách.")
+        
+        # Dropdown to select field and language
+        wordlist_col1, wordlist_col2 = st.columns(2)
+        
+        with wordlist_col1:
+            selected_field = st.selectbox(
+                "Vyberte datové pole:",
+                options=get_all_fields(),
+                format_func=lambda x: {
+                    'date': 'Datum',
+                    'total': 'Celková částka',
+                    'currency': 'Měna',
+                    'payment_method': 'Způsob platby',
+                    'merchant': 'Obchodník',
+                    'purpose': 'Účel'
+                }.get(x, x)
+            )
+        
+        with wordlist_col2:
+            selected_language = st.selectbox(
+                "Vyberte jazyk:",
+                options=get_all_languages(),
+                format_func=lambda x: {
+                    'cs': 'Čeština',
+                    'fr': 'Francouzština',
+                    'de': 'Němčina'
+                }.get(x, x)
+            )
+        
+        # Show current wordlist
+        st.subheader(f"Aktuální slova pro pole '{selected_field}' v jazyce '{selected_language}':")
+        words = get_words(selected_field, selected_language)
+        
+        # Display current words as "chips" with remove option
+        if words:
+            word_cols = st.columns(3)
+            for i, word in enumerate(words):
+                col_idx = i % 3
+                with word_cols[col_idx]:
+                    if st.button(f"❌ {word}", key=f"remove_{selected_field}_{selected_language}_{i}"):
+                        if remove_word(selected_field, selected_language, word):
+                            st.success(f"Slovo '{word}' bylo odstraněno.")
+                            st.rerun()
+                        else:
+                            st.error(f"Nepodařilo se odstranit slovo '{word}'.")
         else:
-            st.info(get_text('no_receipts_to_delete', 'cs'))
+            st.info("Pro toto pole a jazyk zatím nejsou definována žádná slova.")
+        
+        # Add new word
+        st.subheader("Přidat nové slovo:")
+        new_word = st.text_input("Zadejte nové slovo", key=f"new_word_{selected_field}_{selected_language}")
+        
+        if st.button("Přidat", key=f"add_{selected_field}_{selected_language}"):
+            if new_word:
+                if add_word(selected_field, selected_language, new_word):
+                    st.success(f"Slovo '{new_word}' bylo přidáno.")
+                    st.rerun()
+                else:
+                    st.error(f"Nepodařilo se přidat slovo '{new_word}'.")
+            else:
+                st.warning("Zadejte slovo, které chcete přidat.")
+        
+        # Reset wordlist option
+        st.subheader("Resetovat slovník")
+        reset_cols = st.columns(3)
+        
+        with reset_cols[0]:
+            if st.button(f"Resetovat pole '{selected_field}' pro jazyk '{selected_language}'"):
+                if reset_wordlist(selected_field, selected_language):
+                    st.success(f"Slovník pro pole '{selected_field}' v jazyce '{selected_language}' byl obnoven na výchozí hodnoty.")
+                    st.rerun()
+                else:
+                    st.error("Nepodařilo se obnovit slovník.")
+                    
+        with reset_cols[1]:
+            if st.button(f"Resetovat celé pole '{selected_field}'"):
+                if reset_wordlist(selected_field):
+                    st.success(f"Slovník pro pole '{selected_field}' byl obnoven na výchozí hodnoty pro všechny jazyky.")
+                    st.rerun()
+                else:
+                    st.error("Nepodařilo se obnovit slovník.")
+        
+        with reset_cols[2]:
+            if st.button("Resetovat všechny slovníky"):
+                if reset_wordlist():
+                    st.success("Všechny slovníky byly obnoveny na výchozí hodnoty.")
+                    st.rerun()
+                else:
+                    st.error("Nepodařilo se obnovit slovníky.")
+    
+    # About tab
+    with settings_tabs[2]:
+        st.subheader(get_text('about_app', 'cs'))
+        st.write(get_text('app_description', 'cs'))
+        
+        st.markdown("""
+        ## Více informací
+        
+        SkenÚčtenek je aplikace pro digitalizaci účtenek a zjednodušení správy výdajů.
+        
+        ### Podporované jazyky pro rozpoznávání účtenek:
+        - Čeština
+        - Francouzština
+        - Němčina
+        
+        ### Funkce aplikace:
+        - Automatické rozpoznání jazyka účtenek
+        - Extrakce klíčových údajů (datum, částka, měna, obchodník)
+        - Kategorizace výdajů a značkování
+        - Export do Excel
+        - Správa vlastních slovníků pro lepší rozpoznávání
+        """)
+        
+        st.info("Pro nejlepší výsledky rozpoznávání doporučujeme používat jasné a kvalitní fotografie účtenek.")
 
 # Footer
 st.markdown("---")

@@ -1,0 +1,180 @@
+{
+  "date": {
+    "cs": [
+      "datum",
+      "dne",
+      "vystaveno",
+      "dat.",
+      "ze dne",
+      "dat"
+    ],
+    "fr": [
+      "date",
+      "émis le",
+      "date d'émission",
+      "du"
+    ],
+    "de": [
+      "datum",
+      "ausgestellt am",
+      "tag",
+      "vom",
+      "dat.",
+      "dat"
+    ]
+  },
+  "total": {
+    "cs": [
+      "celkem",
+      "celková částka",
+      "součet",
+      "k úhradě",
+      "zaplaceno",
+      "uhrazeno",
+      "suma",
+      "cena celkem"
+    ],
+    "fr": [
+      "total",
+      "montant",
+      "total à payer",
+      "à payer",
+      "net à payer",
+      "total ttc",
+      "somme",
+      "prix total"
+    ],
+    "de": [
+      "gesamt",
+      "summe",
+      "gesamtbetrag",
+      "zu zahlen",
+      "zahlbetrag",
+      "endsumme",
+      "gesamtsumme",
+      "total"
+    ]
+  },
+  "currency": {
+    "cs": [
+      "kč",
+      "czk",
+      "korun",
+      "koruny",
+      "korun českých",
+      "koruny české",
+      "k",
+      "eur",
+      "€"
+    ],
+    "fr": [
+      "€",
+      "eur",
+      "euro",
+      "euros"
+    ],
+    "de": [
+      "€",
+      "eur",
+      "euro"
+    ]
+  },
+  "payment_method": {
+    "cs": [
+      "způsob platby",
+      "platba",
+      "placeno",
+      "hotovost",
+      "karta",
+      "platební karta",
+      "kartou",
+      "bankovní převod",
+      "v hotovosti",
+      "hotově"
+    ],
+    "fr": [
+      "méthode de paiement",
+      "paiement",
+      "réglé par",
+      "payé par",
+      "espèces",
+      "carte",
+      "cb",
+      "carte bancaire",
+      "virement",
+      "chèque"
+    ],
+    "de": [
+      "zahlungsart",
+      "zahlung",
+      "bezahlt mit",
+      "bargeld",
+      "bar",
+      "karte",
+      "ec-karte",
+      "kreditkarte",
+      "kartenzahlung",
+      "überweisung"
+    ]
+  },
+  "merchant": {
+    "cs": [
+      "obchodník",
+      "prodejce",
+      "prodejna",
+      "firma",
+      "dodavatel",
+      "název",
+      "společnost"
+    ],
+    "fr": [
+      "commerçant",
+      "vendeur",
+      "magasin",
+      "entreprise",
+      "fournisseur",
+      "nom",
+      "société"
+    ],
+    "de": [
+      "händler",
+      "verkäufer",
+      "geschäft",
+      "firma",
+      "lieferant",
+      "name",
+      "unternehmen",
+      "geschäftsname"
+    ]
+  },
+  "purpose": {
+    "cs": [
+      "účel",
+      "zboží",
+      "produkt",
+      "služba",
+      "popis",
+      "položka",
+      "název zboží",
+      "název položky"
+    ],
+    "fr": [
+      "objet",
+      "marchandise",
+      "produit",
+      "service",
+      "description",
+      "article",
+      "désignation"
+    ],
+    "de": [
+      "zweck",
+      "ware",
+      "produkt",
+      "dienstleistung",
+      "beschreibung",
+      "artikel",
+      "bezeichnung"
+    ]
+  }
+}
