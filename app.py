@@ -1,18 +1,14 @@
 import streamlit as st
-import pandas as pd
-import os
-import tempfile
 import base64
 from datetime import datetime
 from PIL import Image
 import cv2
 import numpy as np
-from io import BytesIO
 
 from utils.ocr_utils import perform_ocr
 from utils.receipt_parser import extract_receipt_info
 from utils.excel_export import export_to_excel
-from localization.translations import get_text, LANGUAGES, LANGUAGE_NAMES
+from localization.translations import get_text
 
 # Set page config
 st.set_page_config(
@@ -229,10 +225,10 @@ with tabs[0]:
 
 # HISTORY TAB
 with tabs[1]:
-    st.header(get_text('receipt_history', st.session_state.language))
+    st.header(get_text('receipt_history', 'cs'))
     
     if not st.session_state.receipts:
-        st.info(get_text('no_receipts', st.session_state.language))
+        st.info(get_text('no_receipts', 'cs'))
     else:
         try:
             # Display receipts in reverse chronological order
@@ -255,21 +251,21 @@ with tabs[1]:
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            st.write(f"**{get_text('merchant', st.session_state.language)}:** {merchant}")
-                            st.write(f"**{get_text('date', st.session_state.language)}:** {date_str}")
-                            st.write(f"**{get_text('receipt_number', st.session_state.language)}:** {receipt.get('receipt_number', 'N/A')}")
+                            st.write(f"**{get_text('merchant', 'cs')}:** {merchant}")
+                            st.write(f"**{get_text('date', 'cs')}:** {date_str}")
+                            st.write(f"**{get_text('receipt_number', 'cs')}:** {receipt.get('receipt_number', 'N/A')}")
                         
                         with col2:
-                            st.write(f"**{get_text('total', st.session_state.language)}:** {total_str}")
-                            st.write(f"**{get_text('payment_method', st.session_state.language)}:** {receipt.get('payment_method', 'N/A')}")
+                            st.write(f"**{get_text('total', 'cs')}:** {total_str}")
+                            st.write(f"**{get_text('payment_method', 'cs')}:** {receipt.get('payment_method', 'N/A')}")
                         
                         # Delete receipt button with error handling
-                        if st.button(get_text('delete', st.session_state.language), key=f"delete_{idx}"):
+                        if st.button(get_text('delete', 'cs'), key=f"delete_{idx}"):
                             try:
                                 original_idx = len(st.session_state.receipts) - idx - 1
                                 if 0 <= original_idx < len(st.session_state.receipts):
                                     st.session_state.receipts.pop(original_idx)
-                                    st.success(get_text('receipt_deleted', st.session_state.language))
+                                    st.success(get_text('receipt_deleted', 'cs'))
                                     st.rerun()
                                 else:
                                     st.error("Chyba při mazání účtenky - neplatný index")
@@ -290,15 +286,15 @@ with tabs[1]:
 
 # EXPORT TAB
 with tabs[2]:
-    st.header(get_text('export_to_excel', st.session_state.language))
+    st.header(get_text('export_to_excel', 'cs'))
     
     if not st.session_state.receipts:
-        st.info(get_text('no_receipts_to_export', st.session_state.language))
+        st.info(get_text('no_receipts_to_export', 'cs'))
     else:
         try:
             # File name for export with validation
             filename = st.text_input(
-                get_text('excel_filename', st.session_state.language),
+                get_text('excel_filename', 'cs'),
                 value="receipts.xlsx"
             )
             
@@ -307,7 +303,7 @@ with tabs[2]:
                 filename += '.xlsx'
             
             # Column mapping
-            st.subheader(get_text('column_mapping', st.session_state.language))
+            st.subheader(get_text('column_mapping', 'cs'))
             
             col_mapping = {}
             col1, col2 = st.columns(2)
@@ -324,25 +320,25 @@ with tabs[2]:
             
             with col1:
                 col_mapping['date'] = st.text_input(
-                    get_text('date_column', st.session_state.language),
+                    get_text('date_column', 'cs'),
                     value=st.session_state.column_mapping.get('date', 'Datum')
                 )
                 col_mapping['total'] = st.text_input(
-                    get_text('total_column', st.session_state.language),
+                    get_text('total_column', 'cs'),
                     value=st.session_state.column_mapping.get('total', 'Celková částka')
                 )
                 col_mapping['payment_method'] = st.text_input(
-                    get_text('payment_method_column', st.session_state.language),
+                    get_text('payment_method_column', 'cs'),
                     value=st.session_state.column_mapping.get('payment_method', 'Způsob platby')
                 )
             
             with col2:
                 col_mapping['merchant'] = st.text_input(
-                    get_text('merchant_column', st.session_state.language),
+                    get_text('merchant_column', 'cs'),
                     value=st.session_state.column_mapping.get('merchant', 'Obchodník')
                 )
                 col_mapping['receipt_number'] = st.text_input(
-                    get_text('receipt_number_column', st.session_state.language),
+                    get_text('receipt_number_column', 'cs'),
                     value=st.session_state.column_mapping.get('receipt_number', 'Číslo účtenky')
                 )
             
@@ -350,19 +346,19 @@ with tabs[2]:
             st.session_state.column_mapping = col_mapping
             
             # Export button
-            if st.button(get_text('export', st.session_state.language)):
+            if st.button(get_text('export', 'cs')):
                 try:
-                    with st.spinner(get_text('exporting', st.session_state.language)):
+                    with st.spinner(get_text('exporting', 'cs')):
                         # Convert receipts to DataFrame and export
                         excel_buffer = export_to_excel(st.session_state.receipts, st.session_state.column_mapping)
                         
                         # Create download link
                         b64 = base64.b64encode(excel_buffer.getvalue()).decode()
                         download_button_style = "display:inline-block; padding:10px 20px; background-color:#4CAF50; color:white; text-decoration:none; border-radius:4px; margin:10px 0;"
-                        href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}" style="{download_button_style}">{get_text("download_excel", st.session_state.language)}</a>'
+                        href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}" style="{download_button_style}">{get_text("download_excel", "cs")}</a>'
                         st.markdown(href, unsafe_allow_html=True)
                         
-                        st.success(get_text('export_success', st.session_state.language))
+                        st.success(get_text('export_success', 'cs'))
                 except Exception as e:
                     st.error(f"Chyba při exportu: {str(e)}")
                     print(f"Export error: {str(e)}")
@@ -372,27 +368,27 @@ with tabs[2]:
 
 # SETTINGS TAB
 with tabs[3]:
-    st.header(get_text('settings', st.session_state.language))
+    st.header(get_text('settings', 'cs'))
     
     # App information
-    st.subheader(get_text('about_app', st.session_state.language))
-    st.write(get_text('app_description', st.session_state.language))
+    st.subheader(get_text('about_app', 'cs'))
+    st.write(get_text('app_description', 'cs'))
     
     # Reset data option
-    st.subheader(get_text('reset_data', st.session_state.language))
+    st.subheader(get_text('reset_data', 'cs'))
     
-    if st.button(get_text('clear_all_receipts', st.session_state.language), type="primary"):
+    if st.button(get_text('clear_all_receipts', 'cs'), type="primary"):
         if st.session_state.receipts:
             # Confirmation
-            confirm = st.checkbox(get_text('confirm_delete', st.session_state.language))
+            confirm = st.checkbox(get_text('confirm_delete', 'cs'))
             
             if confirm:
                 st.session_state.receipts = []
                 st.session_state.current_receipt = None
-                st.success(get_text('all_receipts_deleted', st.session_state.language))
+                st.success(get_text('all_receipts_deleted', 'cs'))
                 st.rerun()
         else:
-            st.info(get_text('no_receipts_to_delete', st.session_state.language))
+            st.info(get_text('no_receipts_to_delete', 'cs'))
 
 # Footer
 st.markdown("---")
