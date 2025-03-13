@@ -9,10 +9,8 @@ import tempfile
 def preprocess_image(image):
     """
     Preprocess the image to improve OCR results
-    
     Args:
         image: Input image (numpy array)
-        
     Returns:
         Preprocessed image (numpy array)
     """
@@ -47,12 +45,10 @@ def preprocess_image(image):
 def perform_ocr(image, language='ces'):
     """
     Performs OCR on the provided image
-    
     Args:
         image: Input image (numpy array)
         language: Language to use for OCR (default: ces for Czech)
-                  Other options: 'fra' (French), 'deu' (German)
-    
+                 Other options: 'fra' (French), 'deu' (German)
     Returns:
         Extracted text as string
     """
@@ -75,6 +71,7 @@ def perform_ocr(image, language='ces'):
     # Perform OCR directly on the processed image
     # Use optimized parameters for better accuracy and speed
     custom_config = f'--oem 1 --psm 6 -l {lang_code}'
+    
     try:
         # Convert NumPy array to PIL Image
         pil_image = Image.fromarray(processed_image)
@@ -88,45 +85,50 @@ def perform_ocr(image, language='ces'):
         # Enhanced text cleaning
         # Remove empty lines
         text = re.sub(r'\n\s*\n', '\n', text)
+        
         # Remove non-printable characters while preserving language-specific characters
         text = re.sub(r'[^\x00-\x7F\u00C0-\u02AF\u0370-\u03FF\u0400-\u04FF]+', '', text)
+        
         # Remove common OCR errors like isolated special characters
-        text = re.sub(r'(?<!\w)[^a-zA-Z0-9\u00C0-\u02AF\u0370-\u03FF\u0400-\u04FF.,;:?!/\\()&%€$¥£](?!\w)', '', text)
+        text = re.sub(r'(?<!\w)[-?:.,;#%&()](?!\w)', ' ', text)
         
         return text
+    except pytesseract.pytesseract.TesseractNotFoundError:
+        # Když Tesseract není nainstalován, vrátíme informativní zprávu
+        return "Tesseract OCR není nainstalován. Instalujte jej pro správnou funkci OCR."
     except Exception as e:
-        print(f"OCR Error: {str(e)}")
-        # Fallback to file-based approach if direct method fails
+        print(f"OCR error: {str(e)}")
+        
+        # Fallback to file-based method if direct method fails
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
             tmp_filename = tmp.name
             cv2.imwrite(tmp_filename, processed_image)
-        
-        try:
-            text = pytesseract.image_to_string(Image.open(tmp_filename), config=custom_config)
-            text = text.strip()
-            text = re.sub(r'\n\s*\n', '\n', text)
-            text = re.sub(r'[^\x00-\x7F\u00C0-\u02AF\u0370-\u03FF\u0400-\u04FF]+', '', text)
-            return text
-        finally:
-            if os.path.exists(tmp_filename):
-                os.unlink(tmp_filename)
+            
+            try:
+                text = pytesseract.image_to_string(Image.open(tmp_filename), config=custom_config)
+                text = text.strip()
+                return text
+            except Exception as inner_e:
+                print(f"File-based OCR error: {str(inner_e)}")
+                return f"Chyba při zpracování OCR: {str(inner_e)}"
+            finally:
+                if os.path.exists(tmp_filename):
+                    os.unlink(tmp_filename)
 
 def extract_text_blocks(image, language='ces'):
     """
-    Extracts text blocks from the image with positions
-    
+    Extract text blocks with positioning information
     Args:
         image: Input image (numpy array)
         language: Language to use for OCR
-    
     Returns:
         List of dictionaries with text and position information
     """
-    # Map language codes to Tesseract language codes
+    # Map language codes
     lang_map = {
-        'ces': 'ces',  # Czech
-        'fra': 'fra',  # French
-        'deu': 'deu',  # German
+        'ces': 'ces',
+        'fra': 'fra',
+        'deu': 'deu',
         'cs': 'ces',
         'fr': 'fra',
         'de': 'deu'
@@ -138,19 +140,16 @@ def extract_text_blocks(image, language='ces'):
     # Preprocess the image
     processed_image = preprocess_image(image)
     
-    # Directly process the image without saving to file
     try:
-        # Convert OpenCV image to PIL image
+        # Convert NumPy array to PIL Image
         pil_image = Image.fromarray(processed_image)
         
-        # Extract text with positioning data using optimized engine mode
+        # Extract text with positioning data
         custom_config = f'--oem 1 --psm 6 -l {lang_code}'
         data = pytesseract.image_to_data(pil_image, config=custom_config, output_type=pytesseract.Output.DICT)
         
-        # Process the extracted data
         blocks = []
         for i in range(len(data['text'])):
-            # Only include items with reasonable confidence and non-empty text
             if int(data['conf'][i]) > 40 and data['text'][i].strip():
                 block = {
                     'text': data['text'][i].strip(),
@@ -160,35 +159,40 @@ def extract_text_blocks(image, language='ces'):
                     'height': data['height'][i],
                     'conf': data['conf'][i]
                 }
+                
                 blocks.append(block)
-        
+                
         return blocks
+        
     except Exception as e:
         print(f"Block extraction error: {str(e)}")
+        
         # Fallback to file-based method if direct method fails
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
             tmp_filename = tmp.name
             cv2.imwrite(tmp_filename, processed_image)
-        
-        try:
-            # Extract text with positioning data
-            custom_config = f'--oem 1 --psm 6 -l {lang_code}'
-            data = pytesseract.image_to_data(Image.open(tmp_filename), config=custom_config, output_type=pytesseract.Output.DICT)
             
-            blocks = []
-            for i in range(len(data['text'])):
-                if int(data['conf'][i]) > 40 and data['text'][i].strip():
-                    block = {
-                        'text': data['text'][i].strip(),
-                        'x': data['left'][i],
-                        'y': data['top'][i],
-                        'width': data['width'][i],
-                        'height': data['height'][i],
-                        'conf': data['conf'][i]
-                    }
-                    blocks.append(block)
-            
-            return blocks
-        finally:
-            if os.path.exists(tmp_filename):
-                os.unlink(tmp_filename)
+            try:
+                # Extract text with positioning data
+                custom_config = f'--oem 1 --psm 6 -l {lang_code}'
+                data = pytesseract.image_to_data(Image.open(tmp_filename), config=custom_config, output_type=pytesseract.Output.DICT)
+                
+                blocks = []
+                for i in range(len(data['text'])):
+                    if int(data['conf'][i]) > 40 and data['text'][i].strip():
+                        block = {
+                            'text': data['text'][i].strip(),
+                            'x': data['left'][i],
+                            'y': data['top'][i],
+                            'width': data['width'][i],
+                            'height': data['height'][i],
+                            'conf': data['conf'][i]
+                        }
+                        
+                        blocks.append(block)
+                        
+                return blocks
+                
+            finally:
+                if os.path.exists(tmp_filename):
+                    os.unlink(tmp_filename)
