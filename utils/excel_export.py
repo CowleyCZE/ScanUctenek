@@ -172,7 +172,8 @@ def create_mapped_sheet(writer, receipts):
                 if cell:
                     mapped_sheet[cell] = amount
                     
-                    # Add a comment with additional details
+                    # Add a comment with additional details - upravená část pro správné vytváření komentářů
+                    from openpyxl.comments import Comment
                     comment_text = f"Datum: {date_str}\nObchodník: {receipt.get('merchant', '')}"
                     comment = Comment(comment_text, "Receipt Parser")
                     mapped_sheet[cell].comment = comment
