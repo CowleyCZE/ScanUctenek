@@ -74,7 +74,7 @@ with st.sidebar:
 
     if category != st.session_state.selected_category:
         st.session_state.selected_category = category
-        st.rerun()
+        st.experimental_rerun()
 
 # Main app
 st.title(get_text('app_name', 'cs'))
@@ -350,7 +350,7 @@ with tabs[1]:
                                 if 0 <= original_idx < len(st.session_state.receipts):
                                     st.session_state.receipts.pop(original_idx)
                                     st.success(get_text('receipt_deleted', 'cs'))
-                                    st.rerun()
+                                    st.experimental_rerun()
                                 else:
                                     st.error("Chyba při mazání účtenky - neplatný index")
                             except Exception as e:
@@ -366,7 +366,7 @@ with tabs[1]:
             # Offer a reset button if things are really broken
             if st.button("Resetovat historii účtenek"):
                 st.session_state.receipts = []
-                st.rerun()
+                st.experimental_rerun()
 
 # EXPORT TAB
 with tabs[2]:
@@ -520,7 +520,7 @@ with tabs[3]:
                     st.session_state.receipts = []
                     st.session_state.current_receipt = None
                     st.success(get_text('all_receipts_deleted', 'cs'))
-                    st.rerun()
+                    st.experimental_rerun()
             else:
                 st.info(get_text('no_receipts_to_delete', 'cs'))
 
@@ -600,7 +600,7 @@ with tabs[3]:
             if st.button(f"Resetovat pole '{selected_field}' pro jazyk '{selected_language}'"):
                 if reset_wordlist(selected_field, selected_language):
                     st.success(f"Slovník pro pole '{selected_field}' v jazyce '{selected_language}' byl obnoven na výchozí hodnoty.")
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovník.")
 
@@ -616,7 +616,7 @@ with tabs[3]:
             if st.button("Resetovat všechny slovníky"):
                 if reset_wordlist():
                     st.success("Všechny slovníky byly obnoveny na výchozí hodnoty.")
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovníky.")
 
