@@ -1,3 +1,5 @@
 tesseract-ocr
 tesseract-ocr-ces
+tesseract-ocr-fra
+tesseract-ocr-deu
 libtesseract-dev
