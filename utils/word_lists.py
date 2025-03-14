@@ -71,6 +71,25 @@ DEFAULT_WORDLISTS = {
         'de': ['unterkunft', 'hotel', 'pension', 'motel', 'zimmer', 'appartement', 'ferienwohnung', 'gasthaus', 'übernachtung']
     }
 }
+
+def load_wordlists():
+    """
+    Load wordlists from a JSON file or return defaults if the file is not found.
+    Returns:
+        dict: Wordlists for different fields and languages.
+    """
+    wordlist_path = os.path.join(os.path.dirname(__file__), "wordlists.json")
+    
+    if os.path.exists(wordlist_path):
+        try:
+            with open(wordlist_path, "r", encoding="utf-8") as file:
+                return json.load(file)
+        except Exception as e:
+            print(f"Chyba při načítání slovníků: {e}")
+            return DEFAULT_WORDLISTS
+    else:
+        return DEFAULT_WORDLISTS
+
 def add_word(field, language, word):
     """
     Add a word to a specific field and language wordlist
