@@ -41,8 +41,7 @@ def export_to_excel(receipts, column_mapping, template_path=None):
                 column_mapping.get('purpose', 'Účel'): str(receipt.get('purpose', '')),
                 column_mapping.get('currency', 'Měna'): str(receipt.get('currency', 'CZK'))
             }
-            
-                        receipts_data.append(receipt_row)
+            receipts_data.append(receipt_row)
         except Exception as e:
             print(f"Error processing receipt for Excel: {str(e)}")
             continue
