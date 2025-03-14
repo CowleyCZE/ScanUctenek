@@ -26,299 +26,265 @@ def extract_receipt_info(text, language='cs'):
         'payment_method': '',
         'receipt_number': '',
         'currency': 'CZK' if language == 'cs' else 'EUR',
-        'purpose': ''
+        'purpose': '',
+        'specific_data': {}  # New field for specific data based on receipt type
     }
 
     # Normalize the text - fix common OCR errors
-    text = text.replace('|', '1')  # Nahrazení pouze svislých čar, odstraněno nahrazování O a o
+    text = text.replace('|', '1')
+    
+    # Determine receipt type first - this helps with specialized extraction
+    receipt_type = determine_receipt_type(text, language)
+    result['purpose'] = receipt_type
+    
+    # Extract merchant name
+    result['merchant'] = extract_merchant(text, language)
+    
+    # Extract date
+    date_result = extract_date(text, language)
+    if date_result:
+        result['date'] = date_result
+    
+    # Extract total amount
+    total_result = extract_total_amount(text, language)
+    if total_result:
+        result['total'] = total_result
+    
+    # Detect currency
+    result['currency'] = detect_currency(text, language)
+    
+    # Extract payment method
+    result['payment_method'] = extract_payment_method(text, language)
+    
+    # Extract receipt number
+    receipt_num = extract_receipt_number(text, language)
+    if receipt_num:
+        result['receipt_number'] = receipt_num
+    
+    # Extract specific data based on receipt type
+    if receipt_type == 'Pohonné hmoty':
+        result['specific_data'] = extract_fuel_data(text, language)
+    elif receipt_type == 'Mýtné':
+        result['specific_data'] = extract_toll_data(text, language)
+    
+    logger.info(f"Extracted receipt information: {result}")
+    return result
 
-    # Get user-defined wordlists
-    merchant_words = get_words('merchant', language)
-    purpose_words = get_words('purpose', language)
-
-    # Extract merchant name (looking for merchant-related keywords or using the first few lines)
-    lines = text.strip().split('\n')
-    
-    # Try to find merchant by keywords first
-    merchant_found = False
-    for i, line in enumerate(lines):
-        if i >= 10:  # Only check first 10 lines
-            break
-        
-        # Check if any merchant keyword is in this line
-        if any(word.lower() in line.lower() for word in merchant_words):
-            # Extract the text after the keyword
-            for word in merchant_words:
-                if word.lower() in line.lower():
-                    # Get text after the keyword
-                    merchant_text = line[line.lower().find(word.lower()) + len(word):].strip()
-                    if merchant_text and len(merchant_text) > 3:
-                        result['merchant'] = merchant_text.strip('.: ')
-                        merchant_found = True
-                        break
-        
-        if merchant_found:
-            break
-
-    # If no merchant found by keywords, use the first line approach
-    if not merchant_found and lines:
-        # Skip empty or very short lines and avoid using total-related terms as merchant name
-        total_terms = ['celkem', 'total', 'suma', 'součet', 'gesamt', 'summe', 'montant', 'somme']
-        valid_lines = [line for line in lines[:5] if len(line.strip()) > 3 
-                     and not re.match(r'^\d+$', line.strip()) 
-                     and not any(term in line.strip().lower() for term in total_terms)]
-        
-        if valid_lines:
-            # Most often first non-empty line that doesn't look like a date or number
-            result['merchant'] = valid_lines[0].strip()
-    
-    # Get date keywords from user wordlist
-    date_words = get_words('date', language)
-    
-    # Create dynamic date patterns based on user wordlist
-    date_patterns = {
-        'cs': [r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})'],  # Default pattern for Czech: DD.MM.YYYY or DD.MM.YY
-        'fr': [r'(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{2,4})'],  # Default pattern for French: DD/MM/YYYY or DD-MM-YYYY
-        'de': [r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})']  # Default pattern for German: DD.MM.YYYY
-    }
-    
-    # Add patterns based on user wordlist keywords
-    for lang in ['cs', 'fr', 'de']:
-        for word in get_words('date', lang):
-            if lang == 'fr':
-                date_patterns[lang].append(f"{word}:?\\s*(\\d{{1,2}})[/\\-\\.](\\d{{1,2}})[/\\-\\.](\\d{{2,4}})")
-            else:
-                date_patterns[lang].append(f"{word}:?\\s*(\\d{{1,2}})[\\.](\\d{{1,2}})[\\.](\\d{{2,4}})")
-    
-    # Get patterns for the selected language or default to Czech
-    patterns = date_patterns.get(language, date_patterns['cs'])
-    
-    # Try each pattern
-    for pattern in patterns:
-        date_matches = re.search(pattern, text, re.IGNORECASE)
-        if date_matches:
-            day, month, year = date_matches.groups()
-            
-            # Handle 2-digit years
-            if len(year) == 2:
-                year = '20' + year
-            
-            try:
-                # Validate date values
-                day_val = int(day)
-                month_val = int(month)
-                year_val = int(year)
-                
-                if 1 <= day_val <= 31 and 1 <= month_val <= 12 and 2000 <= year_val <= 2030:
-                    result['date'] = datetime(year_val, month_val, day_val)
-                    break
-                else:
-                    logger.warning(f"Found date with out-of-range values: {day}.{month}.{year}")
-            except ValueError:
-                logger.warning(f"Found invalid date: {day}.{month}.{year}")
-                continue
-    
-    # Get total and currency keywords from user wordlist
-    total_words = get_words('total', language)
-    currency_words = get_words('currency', language)
-    
-    # Create dynamic total patterns based on user wordlist
-    total_patterns = {
-        'cs': [],
-        'fr': [],
-        'de': []
-    }
-    
-    # Create currency detection patterns
-    currency_patterns = {
-        'cs': [r'(?:CZK|Kč|KC|Kc)'],
-        'fr': [r'(?:EUR|€)'],
-        'de': [r'(?:EUR|€)']
-    }
-    
-    # Add user-defined currency words to patterns
-    for lang, words in zip(['cs', 'fr', 'de'], [get_words('currency', 'cs'), get_words('currency', 'fr'), get_words('currency', 'de')]):
-        for word in words:
-            # Escape special characters in the word
-            escaped_word = re.escape(word)
-            if not any(escaped_word in pattern for pattern in currency_patterns[lang]):
-                currency_patterns[lang].append(escaped_word)
-    
-    # Join currency patterns with OR operator for each language
-    cs_currency = '|'.join(currency_patterns['cs'])
-    fr_currency = '|'.join(currency_patterns['fr'])
-    de_currency = '|'.join(currency_patterns['de'])
-    
-    # Add dynamic patterns based on total keywords
-    for lang, curr_pattern in zip(['cs', 'fr', 'de'], [cs_currency, fr_currency, de_currency]):
-        # Add default pattern for finding totals
-        total_patterns[lang].append(r'\s(\d+[.,]\d{2})(?:\s*(?:' + curr_pattern + r'))?$')
-        
-        # Add patterns based on user-defined keywords
-        for word in get_words('total', lang):
-            # Clean and escape the keyword for regex
-            word_clean = re.escape(word.strip())
-            
-            total_patterns[lang].append(
-                f"{word_clean}:?\\s*(?:{curr_pattern})?\\.?\\s*(\\d+[.,]\\d{{2}})"  # Opravena escape sekvence \. na \\.
-            )
-            
-            total_patterns[lang].append(
-                f"{word_clean}:?\\s*[^\\d]?(\\d+[.,]\\d{{2}})(?:\\s*(?:{curr_pattern}))?"
-            )
-    
-    # Get patterns for the selected language or default to Czech
-    patterns = total_patterns.get(language, total_patterns['cs'])
-    
-    # Try each pattern
-    for pattern in patterns:
-        total_matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
-        if total_matches:
-            # Use the largest value found (often the final total)
-            largest_total = 0.0
-            for total_str in total_matches:
-                try:
-                    total_val = float(total_str.replace(',', '.'))
-                    # Keep the largest value that's reasonably sized (to filter out possible line item prices)
-                    if total_val > largest_total and total_val < 100000:  # Sanity check for reasonable amount
-                        largest_total = total_val
-                except ValueError:
-                    logger.warning(f"Found invalid total amount: {total_str}")
-                    continue
-            
-            if largest_total > 0:
-                result['total'] = largest_total
-                break
-    
-    # Detect currency - check for currency keywords in text
-    if language == 'cs':
-        # Default for Czech is CZK
-        result['currency'] = 'CZK'
-        # Look for EUR symbols in Czech receipts to detect possible EUR currency
-        if re.search(r'(?:EUR|€)', text, re.IGNORECASE):
-            result['currency'] = 'EUR'
-    else:
-        # Default for other languages is EUR
-        result['currency'] = 'EUR'
-        # Look for CZK symbols in non-Czech receipts to detect possible CZK currency
-        if re.search(r'(?:CZK|Kč|KC|Kc)', text, re.IGNORECASE):
-            result['currency'] = 'CZK'
-    
-    # Get payment method keywords from wordlist
-    payment_words = get_words('payment_method', language)
-    
-    # Default payment patterns
-    payment_patterns = {
-        'cs': {
-            'cash': [r'HOTOVOST', r'Hotově', r'Hotovost', r'v hotovosti', r'HOTOVĚ'],
-            'card': [r'KARTA', r'Platební karta', r'Kartou', r'Karta', r'KARTOU', r'PLATEBNÍ KARTA'],
-            'other': [r'Jiné', r'Ostatní', r'Bankovní převod', r'PŘEVOD', r'POUKÁZKA', r'STRAVENKY']
-        },
-        'fr': {
-            'cash': [r'ESPÈCES', r'ESPECES', r'Espèces', r'En espèces', r'CASH'],
-            'card': [r'CARTE', r'Carte bancaire', r'Carte de crédit', r'CB', r'CARTE BANCAIRE'],
-            'other': [r'Autre', r'Virement', r'Chèque', r'CHEQUE', r'VIREMENT']
-        },
-        'de': {
-            'cash': [r'BARGELD', r'Bar', r'Barzahlung', r'BAR', r'BARZAHLUNG'],
-            'card': [r'KARTE', r'EC-Karte', r'Kreditkarte', r'Kartenzahlung', r'EC KARTE', r'KARTENZAHLUNG'],
-            'other': [r'Andere', r'Überweisung', r'Lastschrift', r'UEBERWEISUNG', r'RECHNUNG']
-        }
-    }
-    
-    # Add payment method keywords from wordlist
-    # Categorize payment methods by keyword analysis
-    for word in payment_words:
-        word_lower = word.lower()
-        
-        # Try to categorize the payment keyword
-        if any(cash_word in word_lower for cash_word in ['hotov', 'cash', 'espèce', 'espece', 'bar', 'bargeld']):
-            payment_patterns[language]['cash'].append(re.escape(word))
-        elif any(card_word in word_lower for card_word in ['kart', 'card', 'carte', 'bank', 'credit', 'debit', 'karte']):
-            payment_patterns[language]['card'].append(re.escape(word))
-        else:
-            payment_patterns[language]['other'].append(re.escape(word))
-    
-    # Get patterns for the selected language or default to Czech
-    patterns = payment_patterns.get(language, payment_patterns['cs'])
-    
-    # Try each pattern for each payment type
-    payment_found = False
-    for payment_type, pattern_list in patterns.items():
-        if payment_found:
-            break
-        
-        for pattern in pattern_list:
-            if re.search(pattern, text, re.IGNORECASE):
-                # Always use standardized payment method names for consistent cell mapping
-                result['payment_method'] = 'Hotovost' if payment_type == 'cash' else 'Kartou' if payment_type == 'card' else 'Jiné'
-                payment_found = True
-                break
-    
-    # Default payment method if none is found
-    if not result['payment_method']:
-        if language == 'cs':
-            result['payment_method'] = 'Hotovost'
-        elif language == 'fr':
-            result['payment_method'] = 'Espèces'
-        elif language == 'de':
-            result['payment_method'] = 'Bargeld'
-        else:
-            result['payment_method'] = 'Cash'
-    
-    # Try to detect purpose (what the receipt is for) using the purpose wordlist
-    purpose_words = get_words('purpose', language)
-    purpose_found = False
-    
-    # Check for special purpose categories (fuel, toll, accommodation)
-    fuel_words = get_words('fuel', language)
-    toll_words = get_words('toll', language)
-    accommodation_words = get_words('accommodation', language)
-    
+def determine_receipt_type(text, language):
+    """Determine the type of receipt based on text content"""
     # Check for fuel-related keywords
+    fuel_words = get_words('fuel', language)
     for keyword in fuel_words:
         if keyword.lower() in text.lower():
-            result['purpose'] = 'Pohonné hmoty'
-            purpose_found = True
+            # Additional verification for fuel receipts
+            if (re.search(r'(\d+[.,]\d+)\s*[lL]', text) or 
+                re.search(r'[qQ]uantit[eé]', text) or 
+                re.search(r'[vV]olume', text) or
+                re.search(r'[lL]itre', text) or
+                re.search(r'[gG]azole', text) or
+                re.search(r'[dD]iesel', text)):
+                return 'Pohonné hmoty'
+    
+    # Check for toll-related keywords
+    toll_words = get_words('toll', language)
+    for keyword in toll_words:
+        if keyword.lower() in text.lower():
+            # Additional verification for toll receipts
+            if (re.search(r'[kK]m', text) or 
+                re.search(r'[tT]rajet', text) or 
+                re.search(r'[sS]ortie', text) or
+                re.search(r'[eE]ntrée', text) or
+                re.search(r'SANEF', text) or
+                re.search(r'COFIROUTE', text) or
+                re.search(r'VINCI', text) or
+                re.search(r'AUTOROUTES', text)):
+                return 'Mýtné'
+    
+    # Check for accommodation-related keywords
+    accommodation_words = get_words('accommodation', language)
+    for keyword in accommodation_words:
+        if keyword.lower() in text.lower():
+            return 'Bydlení'
+    
+    # Default to Other
+    return 'Ostatní'
+def extract_fuel_data(text, language):
+    """
+    Extract fuel-specific data from receipt
+    Args:
+        text: OCR text from receipt
+        language: Language code
+    Returns:
+        Dictionary with fuel-specific data
+    """
+    fuel_data = {
+        'volume': None,
+        'unit_price': None,
+        'fuel_type': None,
+        'station': None
+    }
+    
+    # Extract volume (liters)
+    volume_patterns = [
+        # Czech patterns
+        r'(\d+[.,]\d+)\s*[lL](?![a-zA-Z])',
+        r'[mM]nožství:?\s*(\d+[.,]\d+)',
+        # French patterns
+        r'[vV]olume\s*[=:]\s*(\d+[.,]\d+)',
+        r'[vV]olume\s*(\d+[.,]\d+)',
+        r'[qQ]uantit[eé]\s*[=:]*\s*\(?(\d+[.,]\d+)',
+        r'(\d+[.,]\d+)\s*[lL]i?t?r?e?s?\s*pompe'
+    ]
+    
+    for pattern in volume_patterns:
+        volume_match = re.search(pattern, text)
+        if volume_match:
+            try:
+                fuel_data['volume'] = float(volume_match.group(1).replace(',', '.'))
+                break
+            except ValueError:
+                continue
+    
+    # Extract unit price
+    price_patterns = [
+        # Czech patterns
+        r'[cC]ena\s*\/\s*[lL].*?(\d+[.,]\d+)',
+        r'[jJ]ednotková\s*cena.*?(\d+[.,]\d+)',
+        # French patterns
+        r'[pP]rix\s*unit[.,]\s*[=:]*\s*\(?(\d+[.,]\d+)',
+        r'[pP]ri[xjs]\s*[=:]*\s*[\€\$]*\s*\(?(\d+[.,]\d+)\s*\/\s*[lL]',
+        r'(\d+[.,]\d+)\s*\€\s*\/\s*[lL]'
+    ]
+    
+    for pattern in price_patterns:
+        price_match = re.search(pattern, text)
+        if price_match:
+            try:
+                fuel_data['unit_price'] = float(price_match.group(1).replace(',', '.'))
+                break
+            except ValueError:
+                continue
+    
+    # Extract fuel type
+    if re.search(r'\b(diesel|gazo[l]?e|nafta)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'DIESEL'
+    elif re.search(r'\b(natural\s*95|natural|sp95|sp\s*95|e5)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'NATURAL95'
+    elif re.search(r'\b(super|sp98|e10)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'SUPER'
+    elif re.search(r'\b(lpg|autogas)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'LPG'
+    
+    # Extract station name
+    station_patterns = [
+        r'(AVIA\s+[A-Za-z\s]+)',
+        r'(GULF\s+[A-Za-z\s]+)',
+        r'(OMV\s+[A-Za-z\s]+)',
+        r'(TOTAL\s*ENERGIES)',
+        r'(SHELL\s+[A-Za-z\s]+)',
+        r'(MOL\s+[A-Za-z\s]+)',
+        r'(ORLEN\s+[A-Za-z\s]+)',
+        r'(BENZINA\s+[A-Za-z\s]+)'
+    ]
+    
+    for pattern in station_patterns:
+        station_match = re.search(pattern, text, re.IGNORECASE)
+        if station_match:
+            fuel_data['station'] = station_match.group(1).strip()
             break
     
-    # Check for toll-related keywords if no fuel match
-    if not purpose_found:
-        for keyword in toll_words:
-            if keyword.lower() in text.lower():
-                result['purpose'] = 'Mýtné'
-                purpose_found = True
-                break
+    # Calculate unit price if we have volume and total but no unit price
+    if fuel_data['volume'] and not fuel_data['unit_price']:
+        total = extract_total_amount(text, language)
+        if total and fuel_data['volume'] > 0:
+            fuel_data['unit_price'] = total / fuel_data['volume']
     
-    # Check for accommodation-related keywords if no fuel or toll match
-    if not purpose_found:
-        for keyword in accommodation_words:
-            if keyword.lower() in text.lower():
-                result['purpose'] = 'Bydlení'
-                purpose_found = True
-                break
+    return fuel_data
+
+def extract_toll_data(text, language):
+    """
+    Extract toll-specific data from receipt
+    Args:
+        text: OCR text from receipt
+        language: Language code
+    Returns:
+        Dictionary with toll-specific data
+    """
+    toll_data = {
+        'company': None,
+        'route': None,
+        'distance': None,
+        'entry_point': None,
+        'exit_point': None,
+        'vehicle_class': None
+    }
     
-    # If not found yet, try with user wordlist
-    if not purpose_found:
-        for word in purpose_words:
-            if word.lower() in text.lower():
-                # Find the line containing this word
-                lines = text.lower().split('\n')
-                for line in lines:
-                    if word.lower() in line:
-                        # Extract the text around the keyword
-                        start_idx = line.find(word.lower())
-                        # Get text after the keyword, limiting to 30 chars
-                        purpose_text = line[start_idx:].strip()
-                        if len(purpose_text) > 5:  # If we found something meaningful
-                            result['purpose'] = purpose_text.capitalize()
-                            purpose_found = True
-                            break
-                
-                if purpose_found:
-                    break
+    # Extract toll company
+    if re.search(r'SANEF', text, re.IGNORECASE):
+        toll_data['company'] = 'SANEF'
+    elif re.search(r'COFIROUTE', text, re.IGNORECASE):
+        toll_data['company'] = 'COFIROUTE'
+    elif re.search(r'VINCI', text, re.IGNORECASE):
+        toll_data['company'] = 'VINCI'
     
-    # Extract receipt number based on language - enhanced patterns
+    # Extract route
+    route_match = re.search(r'[tT]rajet\s*:?\s*([^,\n]+)', text)
+    if route_match:
+        toll_data['route'] = route_match.group(1).strip()
+    
+    # Extract entry and exit points
+    entry_match = re.search(r'[eE]ntrée\s*:?\s*([^,\n]+)', text)
+    if entry_match:
+        toll_data['entry_point'] = entry_match.group(1).strip()
+    
+    exit_match = re.search(r'[sS]ortie\s*:?\s*([^,\n]+)', text)
+    if exit_match:
+        toll_data['exit_point'] = exit_match.group(1).strip()
+    
+    # If we have entry and exit but no route, construct it
+    if not toll_data['route'] and toll_data['entry_point'] and toll_data['exit_point']:
+        toll_data['route'] = f"{toll_data['entry_point']} - {toll_data['exit_point']}"
+    
+    # Extract distance
+    distance_match = re.search(r'[kK]m\s*parcourus\s*:?\s*(\d+[.,]\d+)', text) or re.search(r'[kK]m\s*:?\s*(\d+)', text)
+    if distance_match:
+        try:
+            toll_data['distance'] = float(distance_match.group(1).replace(',', '.'))
+        except ValueError:
+            pass
+    
+    # Extract vehicle class
+    class_match = re.search(r'[cC]lasse\s*:?\s*(\d+)', text) or re.search(r'[cC]lasse\s*tarif\s*:?\s*(\d+)', text)
+    if class_match:
+        try:
+            toll_data['vehicle_class'] = int(class_match.group(1))
+        except ValueError:
+            pass
+    
+    return toll_data
+
+def detect_currency(text, language):
+    """Detect currency from receipt text"""
+    # Default currency based on language
+    default_currency = 'CZK' if language == 'cs' else 'EUR'
+    
+    # Check for EUR symbols in text
+    if re.search(r'(?:EUR|€)', text, re.IGNORECASE):
+        return 'EUR'
+    
+    # Check for CZK symbols in text
+    if re.search(r'(?:CZK|Kč|KC|Kc)', text, re.IGNORECASE):
+        return 'CZK'
+    
+    # Check for French-specific indicators (likely to be EUR)
+    if re.search(r'(?:TVA|SIRET|COFIROUTE|SANEF|VINCI|AUTOROUTES)', text, re.IGNORECASE):
+        return 'EUR'
+    
+    return default_currency
+
+def extract_receipt_number(text, language):
+    """Extract receipt number from receipt text"""
+    # Enhanced patterns for receipt numbers
     receipt_patterns = {
         'cs': [
             r'Č\.\s*(?:účtenky|dokladu):?\s*[:#]?\s*(\w+[-/]?\w+)',
@@ -357,8 +323,233 @@ def extract_receipt_info(text, language='cs'):
     for pattern in patterns:
         receipt_num_matches = re.search(pattern, text, re.IGNORECASE)
         if receipt_num_matches:
-            result['receipt_number'] = receipt_num_matches.group(1).strip()
+            return receipt_num_matches.group(1).strip()
+    
+    # If no specific receipt number pattern matches, try generic patterns
+    generic_patterns = [
+        r'#\s*(\d+\w*)',
+        r'No\.\s*(\d+\w*)',
+        r'N°\s*(\d+\w*)',
+        r'Nr\.\s*(\d+\w*)',
+        r'Ref\.\s*(\d+\w*)',
+        r'ID\s*:\s*(\d+\w*)'
+    ]
+    
+    for pattern in generic_patterns:
+        generic_match = re.search(pattern, text, re.IGNORECASE)
+        if generic_match:
+            return generic_match.group(1).strip()
+    
+    return ''
+    # If no specific receipt number pattern matches, try generic patterns
+    generic_patterns = [
+        r'#\s*(\d+\w*)',
+        r'No\.\s*(\d+\w*)',
+        r'N°\s*(\d+\w*)',
+        r'Nr\.\s*(\d+\w*)',
+        r'Ref\.\s*(\d+\w*)',
+        r'ID\s*:\s*(\d+\w*)'
+    ]
+    
+    for pattern in generic_patterns:
+        generic_match = re.search(pattern, text, re.IGNORECASE)
+        if generic_match:
+            result['receipt_number'] = generic_match.group(1).strip()
+            break
+
+    # If purpose is still not found, set a default
+    if not result['purpose']:
+        result['purpose'] = 'Ostatní'
+
+    return result
+
+def extract_fuel_data(text, language):
+    """
+    Extract fuel-specific data from receipt
+    Args:
+        text: OCR text from receipt
+        language: Language code
+    Returns:
+        Dictionary with fuel-specific data
+    """
+    fuel_data = {
+        'volume': None,
+        'unit_price': None,
+        'fuel_type': None,
+        'station': None
+    }
+    
+    # Extract volume (liters)
+    volume_patterns = [
+        r'(\d+[.,]\d+)\s*[lL](?![a-zA-Z])',
+        r'[mM]nožství:?\s*(\d+[.,]\d+)',
+        r'[vV]olume\s*[=:]\s*(\d+[.,]\d+)',
+        r'[vV]olume\s*(\d+[.,]\d+)',
+        r'[qQ]uantit[eé]\s*[=:]*\s*\(?(\d+[.,]\d+)',
+        r'(\d+[.,]\d+)\s*[lL]i?t?r?e?s?\s*pompe'
+    ]
+    
+    for pattern in volume_patterns:
+        volume_match = re.search(pattern, text)
+        if volume_match:
+            try:
+                fuel_data['volume'] = float(volume_match.group(1).replace(',', '.'))
+                break
+            except ValueError:
+                continue
+    
+    # Extract unit price
+    price_patterns = [
+        r'[cC]ena\s*\/\s*[lL].*?(\d+[.,]\d+)',
+        r'[jJ]ednotková\s*cena.*?(\d+[.,]\d+)',
+        r'[pP]rix\s*unit[.,]\s*[=:]*\s*\(?(\d+[.,]\d+)',
+        r'[pP]ri[xjs]\s*[=:]*\s*[\€\$]*\s*\(?(\d+[.,]\d+)\s*\/\s*[lL]',
+        r'(\d+[.,]\d+)\s*\€\s*\/\s*[lL]'
+    ]
+    
+    for pattern in price_patterns:
+        price_match = re.search(pattern, text)
+        if price_match:
+            try:
+                fuel_data['unit_price'] = float(price_match.group(1).replace(',', '.'))
+                break
+            except ValueError:
+                continue
+    
+    # Extract fuel type
+    if re.search(r'\b(diesel|gazo[l]?e|nafta)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'DIESEL'
+    elif re.search(r'\b(natural\s*95|natural|sp95|sp\s*95|e5)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'NATURAL95'
+    elif re.search(r'\b(super|sp98|e10)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'SUPER'
+    elif re.search(r'\b(lpg|autogas)\b', text, re.IGNORECASE):
+        fuel_data['fuel_type'] = 'LPG'
+    
+    # Extract station name
+    station_patterns = [
+        r'(AVIA\s+[A-Za-z\s]+)',
+        r'(GULF\s+[A-Za-z\s]+)',
+        r'(OMV\s+[A-Za-z\s]+)',
+        r'(TOTAL\s*ENERGIES)',
+        r'(SHELL\s+[A-Za-z\s]+)',
+        r'(MOL\s+[A-Za-z\s]+)',
+        r'(ORLEN\s+[A-Za-z\s]+)',
+        r'(BENZINA\s+[A-Za-z\s]+)'
+    ]
+    
+    for pattern in station_patterns:
+        station_match = re.search(pattern, text, re.IGNORECASE)
+        if station_match:
+            fuel_data['station'] = station_match.group(1).strip()
             break
     
-    logger.info(f"Extracted receipt information: {result}")
-    return result
+    # Calculate unit price if we have volume and total but no unit price
+    if fuel_data['volume'] and not fuel_data['unit_price']:
+        total = extract_total_amount(text, language)
+        if total and fuel_data['volume'] > 0:
+            fuel_data['unit_price'] = total / fuel_data['volume']
+    
+    return fuel_data
+
+def extract_toll_data(text, language):
+    """
+    Extract toll-specific data from receipt
+    Args:
+        text: OCR text from receipt
+        language: Language code
+    Returns:
+        Dictionary with toll-specific data
+    """
+    toll_data = {
+        'company': None,
+        'route': None,
+        'distance': None,
+        'entry_point': None,
+        'exit_point': None,
+        'vehicle_class': None
+    }
+    
+    # Extract toll company
+    if re.search(r'SANEF', text, re.IGNORECASE):
+        toll_data['company'] = 'SANEF'
+    elif re.search(r'COFIROUTE', text, re.IGNORECASE):
+        toll_data['company'] = 'COFIROUTE'
+    elif re.search(r'VINCI', text, re.IGNORECASE):
+        toll_data['company'] = 'VINCI'
+    
+    # Extract route
+    route_match = re.search(r'[tT]rajet\s*:?\s*([^,\n]+)', text)
+    if route_match:
+        toll_data['route'] = route_match.group(1).strip()
+    
+    # Extract entry and exit points
+    entry_match = re.search(r'[eE]ntrée\s*:?\s*([^,\n]+)', text)
+    if entry_match:
+        toll_data['entry_point'] = entry_match.group(1).strip()
+    
+    exit_match = re.search(r'[sS]ortie\s*:?\s*([^,\n]+)', text)
+    if exit_match:
+        toll_data['exit_point'] = exit_match.group(1).strip()
+    
+    # If we have entry and exit but no route, construct it
+    if not toll_data['route'] and toll_data['entry_point'] and toll_data['exit_point']:
+        toll_data['route'] = f"{toll_data['entry_point']} - {toll_data['exit_point']}"
+    
+    # Extract distance
+    distance_match = re.search(r'[kK]m\s*parcourus\s*:?\s*(\d+[.,]\d+)', text) or re.search(r'[kK]m\s*:?\s*(\d+)', text)
+    if distance_match:
+        try:
+            toll_data['distance'] = float(distance_match.group(1).replace(',', '.'))
+        except ValueError:
+            pass
+    
+    # Extract vehicle class
+    class_match = re.search(r'[cC]lasse\s*:?\s*(\d+)', text) or re.search(r'[cC]lasse\s*tarif\s*:?\s*(\d+)', text)
+    if class_match:
+        try:
+            toll_data['vehicle_class'] = int(class_match.group(1))
+        except ValueError:
+            pass
+    
+    return toll_data
+
+def extract_total_amount(text, language):
+    """Extract total amount from receipt text"""
+    # Get total keywords from user wordlist
+    total_words = get_words('total', language)
+    
+    # Create dynamic total patterns based on user wordlist
+    total_patterns = []
+    
+    # Add patterns based on user-defined keywords
+    for word in total_words:
+        # Clean and escape the keyword for regex
+        word_clean = re.escape(word.strip())
+        total_patterns.append(
+            f"{word_clean}:?\\s*[^\\d]?(\\d+[.,]\\d{{2}})(?:\\s*(?:EUR|€|CZK|Kč))?"
+        )
+    
+    # Add default pattern for finding totals
+    total_patterns.append(r'\s(\d+[.,]\d{2})(?:\s*(?:EUR|€|CZK|Kč))?$')
+    
+    # Try each pattern
+    for pattern in total_patterns:
+        total_matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
+        if total_matches:
+            # Use the largest value found (often the final total)
+            largest_total = 0.0
+            for total_str in total_matches:
+                try:
+                    total_val = float(total_str.replace(',', '.'))
+                    # Keep the largest value that's reasonably sized (to filter out possible line item prices)
+                    if total_val > largest_total and total_val < 100000:  # Sanity check for reasonable amount
+                        largest_total = total_val
+                except ValueError:
+                    logger.warning(f"Found invalid total amount: {total_str}")
+                    continue
+            
+            if largest_total > 0:
+                return largest_total
+    
+    return 0.0
