@@ -76,7 +76,7 @@ def find_next_empty_cell(worksheet, cell_range):
     """
     if not cell_range:
         return None
-        
+    
     start_cell, end_cell = cell_range
     
     # Extract column letter and row number from start and end cells
@@ -87,8 +87,13 @@ def find_next_empty_cell(worksheet, cell_range):
     # Check each cell in the range
     for row in range(start_row, end_row + 1):
         cell = f"{start_col}{row}"
-        if not worksheet[cell].value:
-            return cell
+        try:
+            if worksheet[cell].value is None:
+                return cell
+        except Exception as e:
+            print(f"Error checking cell {cell}: {str(e)}")
+            continue
     
     # All cells are filled
     return None
+
