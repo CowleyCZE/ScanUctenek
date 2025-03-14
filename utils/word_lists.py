@@ -90,6 +90,24 @@ def load_wordlists():
     else:
         return DEFAULT_WORDLISTS
 
+def save_wordlists(wordlists):
+    """
+    Save wordlists to a JSON file.
+    Args:
+        wordlists: The wordlists dictionary to save.
+    Returns:
+        bool: Success or failure
+    """
+    wordlist_path = os.path.join(os.path.dirname(__file__), "wordlists.json")
+    
+    try:
+        with open(wordlist_path, "w", encoding="utf-8") as file:
+            json.dump(wordlists, file, ensure_ascii=False, indent=4)
+        return True
+    except Exception as e:
+        logger.error(f"Chyba při ukládání slovníků: {e}")
+        return False
+
 def add_word(field, language, word):
     """
     Add a word to a specific field and language wordlist
