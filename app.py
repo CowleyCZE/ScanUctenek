@@ -287,7 +287,7 @@ with tabs[0]:
                     print(f"Error saving receipt: {str(e)}")
                 finally:
                     # Always rerun to refresh the form/page
-                    st.rerun()
+                    st.experimental_rerun()
 
 # HISTORY TAB
 with tabs[1]:
