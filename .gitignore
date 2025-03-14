@@ -1,0 +1,96 @@
+﻿# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribuční a balíčkovací adresáře
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtuální prostředí
+venv/
+env/
+ENV/
+.env
+.venv
+
+# Testy a pokrytí
+.coverage
+htmlcov/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# Streamlit specifické
+.streamlit/secrets.toml
+
+# Databáze
+*.db
+*.sqlite
+*.sqlite3
+
+# Logy
+*.log
+logs/
+
+# Dočasné soubory
+temp/
+tmp/
+.tmp/
+
+# Nahrané soubory a obrázky (pokud je nechcete v repozitáři)
+uploads/
+images/
+receipts/
+
+# Výstupní data
+output/
+results/
+export/
+
+# Vývojová prostředí
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# OS specifické soubory
+.DS_Store
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Lokální konfigurační soubory
+config.local.yaml
+config.local.yml
+config.local.json
+
+# Soubory zámků balíčků (podle vašeho rozhodnutí)
+# Pokud používáte Poetry, můžete zachovat poetry.lock v repozitáři
+# pip-lock.txt
+# requirements.lock
+/.vs
