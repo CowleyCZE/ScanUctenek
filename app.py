@@ -4,6 +4,7 @@ from datetime import datetime
 from PIL import Image
 import cv2
 import numpy as np
+import os
 
 from utils.ocr_utils import perform_ocr
 from utils.receipt_parser import extract_receipt_info
