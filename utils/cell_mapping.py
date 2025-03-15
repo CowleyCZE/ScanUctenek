@@ -6,7 +6,6 @@ Maps combinations of purpose, currency, and payment method to specific Excel cel
 
 # Define cell ranges for different combinations
 CELL_MAPPINGS = {
-    # Format: (purpose, currency, payment_method): (start_cell, end_cell)
     ('Pohonné hmoty', 'EUR', 'Kartou'): ('B12', 'B19'),
     ('Pohonné hmoty', 'EUR', 'Hotovost'): ('C12', 'C19'),
     ('Pohonné hmoty', 'CZK', 'Kartou'): ('D12', 'D19'),
@@ -22,10 +21,11 @@ CELL_MAPPINGS = {
     ('Bydlení', 'CZK', 'Kartou'): ('D27', 'D31'),
     ('Bydlení', 'CZK', 'Hotovost'): ('E27', 'E31'),
     
-    ('Ostatní', 'EUR', 'Kartou'): ('B31', 'B39'),
-    ('Ostatní', 'EUR', 'Hotovost'): ('C31', 'C39'),
-    ('Ostatní', 'CZK', 'Kartou'): ('D31', 'D39'),
-    ('Ostatní', 'CZK', 'Hotovost'): ('E31', 'E39'),
+    # Upraveno - začíná od buňky B32 místo B31, aby se předešlo překryvu
+    ('Ostatní', 'EUR', 'Kartou'): ('B32', 'B39'),
+    ('Ostatní', 'EUR', 'Hotovost'): ('C32', 'C39'),
+    ('Ostatní', 'CZK', 'Kartou'): ('D32', 'D39'),
+    ('Ostatní', 'CZK', 'Hotovost'): ('E32', 'E39'),
 }
 
 def get_cell_range(purpose, currency, payment_method):
