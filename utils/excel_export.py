@@ -5,7 +5,7 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 from openpyxl.comments import Comment
 from .cell_mapping import get_cell_range, find_next_empty_cell
-import os  # Přidaný chybějící import
+import os
 
 def export_to_excel(receipts, column_mapping, template_path=None):
     """
@@ -140,17 +140,16 @@ def create_mapped_sheet(writer, receipts):
         
         # Set up the basic structure if it's a new sheet
         if 'B11' not in mapped_sheet or mapped_sheet['B11'].value is None:
-            # Headers for columns
-            mapped_sheet['B11'] = 'EUR Karta'
-            mapped_sheet['C11'] = 'EUR Hotově'
-            mapped_sheet['D11'] = 'CZK Karta'
-            mapped_sheet['E11'] = 'CZK Hotově'
-            
-   			# Category labels
-   			mapped_sheet['A12'] = 'Pohonné hmoty'
-			mapped_sheet['A20'] = 'Mýtné'
-			mapped_sheet['A27'] = 'Bydlení'
-			mapped_sheet['A32'] = 'Ostatní'
+		# Headers for columns
+		mapped_sheet['B11'] = 'EUR Karta'
+		mapped_sheet['C11'] = 'EUR Hotově'
+		mapped_sheet['D11'] = 'CZK Karta'
+		mapped_sheet['E11'] = 'CZK Hotově'
+		# Category labels
+		mapped_sheet['A12'] = 'Pohonné hmoty'
+		mapped_sheet['A20'] = 'Mýtné'
+		mapped_sheet['A27'] = 'Bydlení'
+		mapped_sheet['A32'] = 'Ostatní'
         
         # Process each receipt and place it in the appropriate cell
         for receipt in receipts:
