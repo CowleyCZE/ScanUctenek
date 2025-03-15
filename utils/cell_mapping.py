@@ -21,7 +21,6 @@ CELL_MAPPINGS = {
     ('Bydlení', 'CZK', 'Kartou'): ('D27', 'D31'),
     ('Bydlení', 'CZK', 'Hotovost'): ('E27', 'E31'),
     
-    # Upraveno - začíná od buňky B32 místo B31, aby se předešlo překryvu
     ('Ostatní', 'EUR', 'Kartou'): ('B32', 'B39'),
     ('Ostatní', 'EUR', 'Hotovost'): ('C32', 'C39'),
     ('Ostatní', 'CZK', 'Kartou'): ('D32', 'D39'),
