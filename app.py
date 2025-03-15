@@ -508,7 +508,7 @@ with tabs[3]:
             print(f"Export setup error: {str(e)}")
 
 # SETTINGS TAB
-with tabs[4]:
+with tabs[3]:
     st.header(get_text('settings', 'cs'))
 
     # Create sub-tabs for settings
