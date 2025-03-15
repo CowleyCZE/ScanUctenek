@@ -253,8 +253,8 @@ with tabs[0]:
                     if st.checkbox(f"❌ {tag}", key=f"tag_{i}", value=True):
                         updated_tags.append(tag)
 
-            # Přidání nové značky, pokud byla zadána
-            if new_tag and new_tag not in updated_tags:
+            # Přidání nové značky, pokud byla zadána a neexistuje
+            if new_tag and new_tag not in updated_tags and new_tag not in existing_tags:
                 updated_tags.append(new_tag)
 
             # Raw OCR text for reference
