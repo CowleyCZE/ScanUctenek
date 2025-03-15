@@ -66,11 +66,9 @@ def get_cell_range(purpose, currency, payment_method):
 def find_next_empty_cell(worksheet, cell_range):
     """
     Find the next empty cell in the given range
-    
     Args:
         worksheet: The Excel worksheet object
         cell_range: Tuple of (start_cell, end_cell)
-        
     Returns:
         str: Cell reference (e.g., 'B12') or None if all cells in range are filled
     """
@@ -84,6 +82,11 @@ def find_next_empty_cell(worksheet, cell_range):
     start_row = int(start_cell[1:])
     end_row = int(end_cell[1:])
     
+    # Přidaná kontrola validního rozsahu
+    if start_row > end_row:
+        print(f"Warning: Invalid cell range {start_cell}:{end_cell}, start row > end row")
+        return None
+    
     # Check each cell in the range
     for row in range(start_row, end_row + 1):
         cell = f"{start_col}{row}"
@@ -96,4 +99,3 @@ def find_next_empty_cell(worksheet, cell_range):
     
     # All cells are filled
     return None
-
