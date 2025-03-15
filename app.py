@@ -5,6 +5,7 @@ from PIL import Image
 import cv2
 import numpy as np
 import os
+import requests
 
 from utils.ocr_utils import perform_ocr
 from utils.receipt_parser import extract_receipt_info
@@ -55,6 +56,25 @@ def get_svg_content():
         # Fallback if the SVG can't be loaded
         print(f"Error loading SVG: {str(e)}")
         return '<div style="color:#2196F3;font-weight:bold;font-size:24px;margin:10px;">SkenÚčtenek</div>'
+
+def extract_receipt_data(image_path):
+    api_url = "https://gemini.googleapis.com/v1/receipts:analyze"
+    api_key = "AIzaSyBvfpvviIHxJgOxkQeVyZCT2rnhyzI7bMo"  # Zde vložte svůj API klíč
+
+    with open(image_path, "rb") as image_file:
+        image_data = image_file.read()
+
+    headers = {
+        "Content-Type": "application/octet-stream",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    response = requests.post(api_url, headers=headers, data=image_data)
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        response.raise_for_status()
 
 # Sidebar with categories
 with st.sidebar:
@@ -290,8 +310,32 @@ with tabs[0]:
                     # Always rerun to refresh the form/page
                     st.experimental_rerun()
 
-# HISTORY TAB
+# RECEIPTS TAB
 with tabs[1]:
+    st.header(get_text('receipts', 'cs'))
+
+    # Upload receipt image
+    uploaded_receipt = st.file_uploader("Nahrajte účtenku", type=["jpg", "jpeg", "png"])
+
+    if uploaded_receipt is not None:
+        # Save uploaded image
+        receipt_image_path = f"uploads/{uploaded_receipt.name}"
+        with open(receipt_image_path, "wb") as f:
+            f.write(uploaded_receipt.getbuffer())
+
+        # Extract data using Gemini API
+        try:
+            receipt_data = extract_receipt_data(receipt_image_path)
+            st.success("Data z účtenky byla úspěšně extrahována.")
+            st.json(receipt_data)  # Zobrazte extrahovaná data
+
+            # Zpracujte extrahovaná data a uložte je do session_state
+            # Příklad: st.session_state.receipts.append(receipt_data)
+        except Exception as e:
+            st.error(f"Nepodařilo se extrahovat data z účtenky: {e}")
+
+# HISTORY TAB
+with tabs[2]:
     st.header(get_text('receipt_history', 'cs'))
 
     if not st.session_state.receipts:
@@ -370,7 +414,7 @@ with tabs[1]:
                 st.experimental_rerun()
 
 # EXPORT TAB
-with tabs[2]:
+with tabs[3]:
     st.header(get_text('export_to_excel', 'cs'))
 
     if not st.session_state.receipts:
@@ -467,7 +511,7 @@ with tabs[2]:
             print(f"Export setup error: {str(e)}")
 
 # SETTINGS TAB
-with tabs[3]:
+with tabs[4]:
     st.header(get_text('settings', 'cs'))
 
     # Create sub-tabs for settings
