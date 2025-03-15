@@ -250,10 +250,7 @@ with tabs[0]:
             for i, tag in enumerate(existing_tags):
                 col_idx = i % 4
                 with tag_cols[col_idx]:
-                    if not st.checkbox(f"❌ {tag}", key=f"tag_{i}", value=True):
-                        # Když je checkbox odškrtnut, tag bude odstraněn
-                        pass
-                    else:
+                    if st.checkbox(f"❌ {tag}", key=f"tag_{i}", value=True):
                         updated_tags.append(tag)
 
             # Přidání nové značky, pokud byla zadána
@@ -523,13 +520,12 @@ with tabs[4]:
 
     # Basic settings tab
     with settings_tabs[0]:
-        # Excel template option
         st.subheader("Nastavení Excel šablony")
         
         # Initialize template path in session state if not exists
         if 'excel_template_path' not in st.session_state:
             st.session_state.excel_template_path = "templates/user_template.xlsx"
-            
+        
         # Show current template status
         if st.session_state.excel_template_path:
             st.info(f"Aktuálně používaná šablona: {os.path.basename(st.session_state.excel_template_path)}")
@@ -543,7 +539,6 @@ with tabs[4]:
             if st.session_state.receipts:
                 # Confirmation
                 confirm = st.checkbox(get_text('confirm_delete', 'cs'))
-
                 if confirm:
                     st.session_state.receipts = []
                     st.session_state.current_receipt = None
@@ -603,6 +598,7 @@ with tabs[4]:
                             st.rerun()
                         else:
                             st.error(f"Nepodařilo se odstranit slovo '{word}'.")
+
         else:
             st.info("Pro toto pole a jazyk zatím nejsou definována žádná slova.")
 
