@@ -483,24 +483,7 @@ with tabs[3]:
         
         # Initialize template path in session state if not exists
         if 'excel_template_path' not in st.session_state:
-            st.session_state.excel_template_path = None
-            
-        # Allow user to upload a template file
-        uploaded_template = st.file_uploader("Nahrajte Excel šablonu (.xlsx)", type=["xlsx"])
-        
-        if uploaded_template is not None:
-            # Save the template file
-            import os
-            template_dir = "templates"
-            if not os.path.exists(template_dir):
-                os.makedirs(template_dir)
-                
-            template_path = os.path.join(template_dir, "user_template.xlsx")
-            with open(template_path, "wb") as f:
-                f.write(uploaded_template.getbuffer())
-                
-            st.session_state.excel_template_path = template_path
-            st.success(f"Excel šablona byla úspěšně nahrána a bude použita pro export dat.")
+            st.session_state.excel_template_path = "templates/user_template.xlsx"
             
         # Show current template status
         if st.session_state.excel_template_path:
