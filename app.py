@@ -525,8 +525,8 @@ with tabs[3]:
     with settings_tabs[0]:
         st.subheader("Nastavení OCR")
         
-        # Add camera toggle before OCR provider selection
-        camera_enabled = st.toggle(
+        # Replace toggle with checkbox for camera control
+        camera_enabled = st.checkbox(
             "Povolit kameru pro skenování",
             value=st.session_state.camera_enabled,
             help="Zapne nebo vypne možnost skenování pomocí kamery"
