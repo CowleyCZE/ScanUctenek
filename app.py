@@ -45,6 +45,8 @@ if 'available_tags' not in st.session_state:
     st.session_state.available_tags = []
 if 'currencies' not in st.session_state:
     st.session_state.currencies = ['CZK', 'EUR']
+if 'camera_enabled' not in st.session_state:  # Add camera enabled state
+    st.session_state.camera_enabled = True
 
 def get_svg_content():
     try:
@@ -112,10 +114,11 @@ tabs = st.tabs([
 with tabs[0]:
     st.header(get_text('scan_receipt', 'cs'))
 
-    # Camera input for capturing receipt
-    camera_image = st.camera_input(get_text('take_photo', 'cs'), key="camera_input")
-    if camera_image is not None:
-        st.session_state.camera_image = camera_image
+    # Only show camera input if enabled
+    if st.session_state.camera_enabled:
+        camera_image = st.camera_input(get_text('take_photo', 'cs'), key="camera_input")
+        if camera_image is not None:
+            st.session_state.camera_image = camera_image
 
     # Alternatively, allow file upload
     uploaded_file = st.file_uploader(get_text('upload_receipt', 'cs'), 
@@ -159,7 +162,7 @@ with tabs[0]:
                 lang_progress.progress((i+1)/len(languages))
 
                 # Try OCR with this language
-                text = perform_ocr(thresh, lang_code)
+                text = perform_ocr(thresh, lang_code, st.session_state.ocr_provider)
 
                 # If text is recognized, remember it and the language
                 if text and len(text) > len(best_text):
@@ -520,6 +523,46 @@ with tabs[3]:
 
     # Basic settings tab
     with settings_tabs[0]:
+        st.subheader("Nastavení OCR")
+        
+        # Add camera toggle before OCR provider selection
+        camera_enabled = st.toggle(
+            "Povolit kameru pro skenování",
+            value=st.session_state.camera_enabled,
+            help="Zapne nebo vypne možnost skenování pomocí kamery"
+        )
+        
+        if camera_enabled != st.session_state.camera_enabled:
+            st.session_state.camera_enabled = camera_enabled
+            st.success("Nastavení kamery bylo změněno.")
+            st.experimental_rerun()
+
+        # OCR provider selection
+        if 'ocr_provider' not in st.session_state:
+            st.session_state.ocr_provider = 'tesseract'
+        
+        ocr_provider = st.radio(
+            "Vyberte OCR poskytovatele:",
+            options=['tesseract', 'gemini'],
+            format_func=lambda x: "Tesseract OCR" if x == 'tesseract' else "Google Gemini API",
+            index=0 if st.session_state.ocr_provider == 'tesseract' else 1
+        )
+        
+        if ocr_provider != st.session_state.ocr_provider:
+            st.session_state.ocr_provider = ocr_provider
+            st.success("OCR poskytovatel změněn.")
+        
+        # Gemini API key input if Gemini selected
+        if ocr_provider == 'gemini':
+            gemini_api_key = st.text_input(
+                "Zadejte Gemini API klíč:",
+                type="password",
+                value=os.getenv('GEMINI_API_KEY', '')
+            )
+            if gemini_api_key:
+                os.environ['GEMINI_API_KEY'] = gemini_api_key
+
+        # Existing template settings
         st.subheader("Nastavení Excel šablony")
         
         # Initialize template path in session state if not exists

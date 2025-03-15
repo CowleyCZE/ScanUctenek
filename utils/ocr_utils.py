@@ -5,6 +5,7 @@ from PIL import Image
 import os
 import re
 import tempfile
+import requests
 
 def preprocess_image(image):
     """
@@ -42,78 +43,69 @@ def preprocess_image(image):
     
     return dilated
 
-def perform_ocr(image, language='ces'):
+def perform_gemini_ocr(image):
     """
-    Performs OCR on the provided image
+    Performs OCR using Google Cloud Vision API
     Args:
-        image: Input image (numpy array)
-        language: Language to use for OCR (default: ces for Czech)
-                 Other options: 'fra' (French), 'deu' (German)
+        image: Input image
     Returns:
         Extracted text as string
     """
-    # Map language codes to Tesseract language codes
-    lang_map = {
-        'ces': 'ces',  # Czech
-        'fra': 'fra',  # French
-        'deu': 'deu',  # German
-        'cs': 'ces',
-        'fr': 'fra',
-        'de': 'deu'
-    }
-    
-    # Get the correct language code
-    lang_code = lang_map.get(language, 'ces')
-    
-    # Preprocess the image
-    processed_image = preprocess_image(image)
-    
-    # Perform OCR directly on the processed image
-    # Use optimized parameters for better accuracy and speed
-    custom_config = f'--oem 1 --psm 6 -l {lang_code}'
-    
-    try:
-        # Convert NumPy array to PIL Image
-        pil_image = Image.fromarray(processed_image)
+    api_url = "https://gemini.googleapis.com/v1/receipts:analyze"
+    api_key = os.getenv('GEMINI_API_KEY', '')
+
+    if not api_key:
+        raise Exception("GEMINI_API_KEY not set")
+
+    # Save image to temporary file
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+        cv2.imwrite(tmp.name, image)
         
-        # Directly process with Tesseract without saving to disk
-        text = pytesseract.image_to_string(pil_image, config=custom_config)
-        
-        # Clean up the text
-        text = text.strip()
-        
-        # Enhanced text cleaning
-        # Remove empty lines
-        text = re.sub(r'\n\s*\n', '\n', text)
-        
-        # Remove non-printable characters while preserving language-specific characters
-        text = re.sub(r'[^\x00-\x7F\u00C0-\u02AF\u0370-\u03FF\u0400-\u04FF]+', '', text)
-        
-        # Remove common OCR errors like isolated special characters
-        text = re.sub(r'(?<!\w)[-?:.,;#%&()](?!\w)', ' ', text)
-        
-        return text
-    except pytesseract.pytesseract.TesseractNotFoundError:
-        # Když Tesseract není nainstalován, vrátíme informativní zprávu
-        return "Tesseract OCR není nainstalován. Instalujte jej pro správnou funkci OCR."
-    except Exception as e:
-        print(f"OCR error: {str(e)}")
-        
-        # Fallback to file-based method if direct method fails
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-            tmp_filename = tmp.name
-            cv2.imwrite(tmp_filename, processed_image)
+        try:
+            with open(tmp.name, "rb") as image_file:
+                image_data = image_file.read()
+
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "Authorization": f"Bearer {api_key}"
+            }
+
+            response = requests.post(api_url, headers=headers, data=image_data)
             
-            try:
-                text = pytesseract.image_to_string(Image.open(tmp_filename), config=custom_config)
-                text = text.strip()
+            if response.status_code == 200:
+                # Extract text from Gemini response
+                data = response.json()
+                text = ""
+                if "text" in data:
+                    text = data["text"]
                 return text
-            except Exception as inner_e:
-                print(f"File-based OCR error: {str(inner_e)}")
-                return f"Chyba při zpracování OCR: {str(inner_e)}"
-            finally:
-                if os.path.exists(tmp_filename):
-                    os.unlink(tmp_filename)
+            else:
+                response.raise_for_status()
+        finally:
+            os.unlink(tmp.name)
+
+def perform_ocr(image, language='ces', ocr_provider='tesseract'):
+    """
+    Performs OCR on the provided image using selected provider
+    Args:
+        image: Input image (numpy array)
+        language: Language for OCR
+        ocr_provider: 'tesseract' or 'gemini'
+    Returns:
+        Extracted text as string
+    """
+    try:
+        if ocr_provider == 'gemini':
+            return perform_gemini_ocr(image)
+        else:
+            # Use existing Tesseract OCR code
+            processed_image = preprocess_image(image)
+            pil_image = Image.fromarray(processed_image)
+            custom_config = f'--oem 1 --psm 6 -l {language}'
+            return pytesseract.image_to_string(pil_image, config=custom_config)
+    except Exception as e:
+        print(f"OCR error with {ocr_provider}: {str(e)}")
+        return f"OCR error: {str(e)}"
 
 def extract_text_blocks(image, language='ces'):
     """
