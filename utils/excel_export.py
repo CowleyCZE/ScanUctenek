@@ -146,11 +146,11 @@ def create_mapped_sheet(writer, receipts):
             mapped_sheet['D11'] = 'CZK Karta'
             mapped_sheet['E11'] = 'CZK Hotově'
             
-            # Category labels
-            mapped_sheet['A12'] = 'Pohonné hmoty'
-            mapped_sheet['A20'] = 'Mýtné'
-            mapped_sheet['A27'] = 'Bydlení'
-            mapped_sheet['A31'] = 'Ostatní'
+   			# Category labels
+   			mapped_sheet['A12'] = 'Pohonné hmoty'
+			mapped_sheet['A20'] = 'Mýtné'
+			mapped_sheet['A27'] = 'Bydlení'
+			mapped_sheet['A32'] = 'Ostatní'
         
         # Process each receipt and place it in the appropriate cell
         for receipt in receipts:
