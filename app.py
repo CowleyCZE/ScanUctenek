@@ -103,7 +103,6 @@ st.title(get_text('app_name', 'cs'))
 # Navigation
 tabs = st.tabs([
     get_text('scan_tab', 'cs'),
-    get_text('receipts_tab', 'cs'),
     get_text('history_tab', 'cs'),
     get_text('export_tab', 'cs'),
     get_text('settings_tab', 'cs')
