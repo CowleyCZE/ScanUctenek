@@ -3,6 +3,13 @@ from PIL import Image
 import pytesseract
 import logging
 from ocr_service import perform_gemini_ocr  # Fix import statement
+import cv2
+import numpy as np
+import re
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def preprocess_image(image) -> Image:
     """
@@ -14,8 +21,24 @@ def preprocess_image(image) -> Image:
     Returns:
         Image: Preprocessed image
     """
-    # Implement the actual preprocessing logic here
-    return image
+    logging.info("Starting image preprocessing")
+    # Convert to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Resize image to a standard size
+    resized = cv2.resize(gray, (1024, 1024))
+    
+    # Apply contrast enhancement using CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(resized)
+    
+    # Apply adaptive thresholding
+    thresh = cv2.adaptiveThreshold(
+        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
+    
+    logging.info("Image preprocessing completed")
+    return Image.fromarray(thresh)
 
 def extract_structured_data(response: Dict) -> Dict:
     """
@@ -27,8 +50,49 @@ def extract_structured_data(response: Dict) -> Dict:
     Returns:
         Dict: Extracted structured data
     """
-    # Implement the actual logic to extract structured data here
-    return {"structured_data": "example"}
+    text = response.get('text', '')
+    structured_data = {
+        'merchant': '',
+        'date': None,
+        'total': 0.0,
+        'items': [],
+        'metadata': {}
+    }
+
+    # Regex patterns for extracting data
+    merchant_pattern = re.compile(r'Obchodník:\s*(.*)')
+    date_pattern = re.compile(r'Datum:\s*(\d{2}\.\d{2}\.\d{4})')
+    total_pattern = re.compile(r'Celkem:\s*([\d,]+\.?\d*)\s*Kč')
+    item_pattern = re.compile(r'(\d+)\s*x\s*(.*)\s*([\d,]+\.?\d*)\s*Kč')
+
+    # Extract merchant
+    merchant_match = merchant_pattern.search(text)
+    if merchant_match:
+        structured_data['merchant'] = merchant_match.group(1).strip()
+
+    # Extract date
+    date_match = date_pattern.search(text)
+    if date_match:
+        structured_data['date'] = datetime.strptime(date_match.group(1), '%d.%m.%Y')
+
+    # Extract total
+    total_match = total_pattern.search(text)
+    if total_match:
+        structured_data['total'] = float(total_match.group(1).replace(',', ''))
+
+    # Extract items
+    for item_match in item_pattern.finditer(text):
+        quantity = int(item_match.group(1))
+        name = item_match.group(2).strip()
+        price = float(item_match.group(3).replace(',', ''))
+        structured_data['items'].append({
+            'name': name,
+            'quantity': quantity,
+            'unit_price': price / quantity,
+            'total_price': price
+        })
+
+    return structured_data
 
 def perform_gemini_ocr(image) -> Union[str, Dict]:
     """
@@ -57,6 +121,7 @@ def perform_ocr(image, language: str = 'ces', ocr_provider: str = 'tesseract') -
         - text (str): Extrahovaný text
         - structured_data (Optional[Dict]): Strukturovaná data nebo None
     """
+    logging.info(f"Performing OCR with provider: {ocr_provider}")
     try:
         if ocr_provider == 'gemini':
             response = perform_gemini_ocr(image)

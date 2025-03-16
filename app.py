@@ -122,6 +122,18 @@ tabs = st.tabs([
 with tabs[0]:
     st.header(get_text('scan_receipt', 'cs'))
 
+    # Toggle camera input
+    camera_enabled = st.checkbox(
+        "Povolit kameru pro skenování",
+        value=st.session_state.camera_enabled,
+        help="Zapne nebo vypne možnost skenování pomocí kamery"
+    )
+    
+    if camera_enabled != st.session_state.camera_enabled:
+        st.session_state.camera_enabled = camera_enabled
+        st.success("Nastavení kamery bylo změněno.")
+        st.experimental_rerun()
+
     # Only show camera input if enabled
     if st.session_state.camera_enabled:
         camera_image = st.camera_input(get_text('take_photo', 'cs'), key="camera_input")
@@ -567,18 +579,6 @@ with tabs[3]:
     with settings_tabs[0]:
         st.subheader("Nastavení OCR")
         
-        # Replace toggle with checkbox for camera control
-        camera_enabled = st.checkbox(
-            "Povolit kameru pro skenování",
-            value=st.session_state.camera_enabled,
-            help="Zapne nebo vypne možnost skenování pomocí kamery"
-        )
-        
-        if camera_enabled != st.session_state.camera_enabled:
-            st.session_state.camera_enabled = camera_enabled
-            st.success("Nastavení kamery bylo změněno.")
-            st.experimental_rerun()
-
         # OCR provider selection
         if 'ocr_provider' not in st.session_state:
             st.session_state.ocr_provider = 'tesseract'
