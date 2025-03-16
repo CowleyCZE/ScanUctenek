@@ -498,3 +498,36 @@ def detect_currency(text, language):
         return 'EUR'
     
     return default_currency
+
+def extract_receipt_info(text, lang='cs'):
+    logger.info(f"Extracting receipt information from text in language: {lang}")
+    
+    # Vylepšené regulární výrazy pro detekci
+    merchant_pattern = r"(Obchodník|Prodejna|PRODEJCE):\s*(.+)"
+    receipt_number_pattern = r"(Číslo účtenky|Doklad):\s*([A-Z0-9-]+)"
+    
+    receipt_info = {
+        'merchant': '',
+        'date': datetime.now(),
+        'total': 0.0,
+        'payment_method': 'Hotovost',
+        'receipt_number': '',
+        'currency': 'CZK',
+        'purpose': 'Ostatní',
+        'specific_data': {}
+    }
+    
+    if text:
+        # Merchant
+        merchant_match = re.search(merchant_pattern, text, re.IGNORECASE)
+        if merchant_match:
+            receipt_info['merchant'] = merchant_match.group(2).strip()
+            
+        # Receipt number
+        number_match = re.search(receipt_number_pattern, text, re.IGNORECASE)
+        if number_match:
+            receipt_info['receipt_number'] = number_match.group(2).strip()
+            
+        # ...další zpracování...
+    
+    return receipt_info
