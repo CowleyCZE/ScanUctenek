@@ -222,52 +222,50 @@ def extract_total_amount(text, language):
     for word in total_words:
         # Clean and escape the keyword for regex
         word_clean = re.escape(word.strip())
-        total_patterns.append(
-            f"{word_clean}:?\\s*[^\\d]?(\\d+[.,]\\d{{2}})(?:\\s*(?:EUR|€|CZK|Kč))?"
-        )
+        total_patterns.extend([
+            # Základní vzory s různými oddělovači
+            f"{word_clean}:?\\s*[^\\d]*(\\d+[.,]\\d{{2}})(?:\\s*(?:EUR|€|CZK|Kč))?",
+            f"{word_clean}:?\\s*[^\\d]*(\\d+)[.,](\\d{{2}})(?:\\s*(?:EUR|€|CZK|Kč))?",
+            # Vzory pro částky s mezerou mezi tisíci
+            f"{word_clean}:?\\s*[^\\d]*(\\d+\\s*\\d+)[.,](\\d{{2}})(?:\\s*(?:EUR|€|CZK|Kč))?"
+        ])
     
-    # Add default pattern for finding totals
-    total_patterns.append(r'\s(\d+[.,]\d{2})(?:\s*(?:EUR|€|CZK|Kč))?$')
-    
-    # Add French-specific patterns
-    if language == 'fr':
-        total_patterns.append(r'TARIF\s*T\.T\.C\..*?(\d+[.,]\d+)')
-        total_patterns.append(r'MONTANT\s*REEL.*?(\d+[.,]\d+)')
+    # Přidání obecných vzorů pro částky
+    total_patterns.extend([
+        r'Celkem:\s*(\d+[.,]\d{2})',
+        r'Celková\s+částka:\s*(\d+[.,]\d{2})',
+        r'CELKEM\s*(?:CZK|Kč)?\s*(\d+[.,]\d{2})',
+        r'(?:EUR|€|CZK|Kč)\s*(\d+[.,]\d{2})\s*$',
+        r'\b(\d+[.,]\d{2})(?:\s*(?:EUR|€|CZK|Kč))\s*$'
+    ])
     
     # Try each pattern
     for pattern in total_patterns:
         total_matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
         if total_matches:
-            # Use the largest value found (often the final total)
+            # Zpracování nalezených částek
             largest_total = 0.0
-            for total_str in total_matches:
+            for match in total_matches:
                 try:
-                    total_val = float(total_str.replace(',', '.'))
-                    # Keep the largest value that's reasonably sized (to filter out possible line item prices)
-                    if total_val > largest_total and total_val < 100000:  # Sanity check for reasonable amount
+                    # Pokud je match tuple (více skupin), spojíme je
+                    if isinstance(match, tuple):
+                        total_str = '.'.join(match)
+                    else:
+                        total_str = match
+                    
+                    # Odstranění mezer a normalizace desetinné tečky
+                    total_str = total_str.replace(' ', '').replace(',', '.')
+                    total_val = float(total_str)
+                    
+                    # Keep the largest value that's reasonably sized
+                    if total_val > largest_total and total_val < 100000:
                         largest_total = total_val
+                        
                 except ValueError:
-                    logger.warning(f"Found invalid total amount: {total_str}")
                     continue
             
             if largest_total > 0:
                 return largest_total
-    
-    # If no match found with patterns, try to find the largest number in the text
-    # that looks like a price (with decimal places)
-    price_matches = re.findall(r'(\d+[.,]\d{2})', text)
-    if price_matches:
-        largest_price = 0.0
-        for price_str in price_matches:
-            try:
-                price_val = float(price_str.replace(',', '.'))
-                if price_val > largest_price and price_val < 100000:
-                    largest_price = price_val
-            except ValueError:
-                continue
-        
-        if largest_price > 0:
-            return largest_price
     
     return 0.0
 
@@ -498,36 +496,3 @@ def detect_currency(text, language):
         return 'EUR'
     
     return default_currency
-
-def extract_receipt_info(text, lang='cs'):
-    logger.info(f"Extracting receipt information from text in language: {lang}")
-    
-    # Vylepšené regulární výrazy pro detekci
-    merchant_pattern = r"(Obchodník|Prodejna|PRODEJCE):\s*(.+)"
-    receipt_number_pattern = r"(Číslo účtenky|Doklad):\s*([A-Z0-9-]+)"
-    
-    receipt_info = {
-        'merchant': '',
-        'date': datetime.now(),
-        'total': 0.0,
-        'payment_method': 'Hotovost',
-        'receipt_number': '',
-        'currency': 'CZK',
-        'purpose': 'Ostatní',
-        'specific_data': {}
-    }
-    
-    if text:
-        # Merchant
-        merchant_match = re.search(merchant_pattern, text, re.IGNORECASE)
-        if merchant_match:
-            receipt_info['merchant'] = merchant_match.group(2).strip()
-            
-        # Receipt number
-        number_match = re.search(receipt_number_pattern, text, re.IGNORECASE)
-        if number_match:
-            receipt_info['receipt_number'] = number_match.group(2).strip()
-            
-        # ...další zpracování...
-    
-    return receipt_info

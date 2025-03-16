@@ -1,22 +1,20 @@
-import os
-import google.generativeai as genai
-from google.api_core import retry
+import cv2
+import pytesseract
+import logging
 
-# ...existing code...
+logger = logging.getLogger(__name__)
 
-def process_with_gemini(image_path):
+def perform_ocr(image):
+    """
+    Perform OCR on image
+    Args:
+        image: numpy array image
+    Returns:
+        Extracted text as string
+    """
     try:
-        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-        model = genai.GenerativeModel('gemini-pro-vision')
-        
-        with open(image_path, 'rb') as f:
-            image_data = f.read()
-            
-        response = retry.Retry()(model.generate_content)(image_data)
-        return response.text
-        
+        text = pytesseract.image_to_string(image, lang='ces')
+        return text
     except Exception as e:
-        logger.error(f"Error processing image with Gemini: {str(e)}")
-        return None
-
-# ...existing code...
+        logger.error(f"OCR error: {str(e)}")
+        return ""

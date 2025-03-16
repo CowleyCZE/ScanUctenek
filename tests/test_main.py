@@ -15,7 +15,8 @@ class TestSkenUctenek(unittest.TestCase):
         self.test_text = """
         Obchodník: Testovací Obchod
         Datum: 13.03.2025
-        Celkem: 1234.56 Kč
+        
+        Celkem: 1234,56 Kč
         Způsob platby: Kartou
         Číslo účtenky: ABC123
         """
@@ -26,7 +27,7 @@ class TestSkenUctenek(unittest.TestCase):
             "payment_method": "Kartou",
             "receipt_number": "ABC123",
             "currency": "CZK",
-            "purpose": ""
+            "purpose": "Ostatní"
         }
 
     def test_perform_ocr(self):
