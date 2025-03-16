@@ -33,6 +33,14 @@ if 'excel_file' not in st.session_state:
     st.session_state.excel_file = None
 if 'receipt_categories' not in st.session_state:
     st.session_state.receipt_categories = {
+        "Potraviny": [],
+        "Drogerie": [],
+        "Oblečení": [],
+        "Elektronika": [],
+        "Ostatní": []
+    }
+if 'receipt_categories' not in st.session_state:
+    st.session_state.receipt_categories = {
         'fuel': get_text('category_fuel', 'cs'),
         'toll': get_text('category_toll', 'cs'),
         'accommodation': get_text('category_accommodation', 'cs'),
