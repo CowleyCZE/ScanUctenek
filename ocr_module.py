@@ -7,6 +7,9 @@ import cv2
 import numpy as np
 import re
 from datetime import datetime
+import requests  # Přidání importu pro requests
+import os
+import tempfile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -96,16 +99,44 @@ def extract_structured_data(response: Dict) -> Dict:
 
 def perform_gemini_ocr(image) -> Union[str, Dict]:
     """
-    Placeholder function for Gemini OCR.
+    Provede OCR pomocí Gemini API.
     
     Args:
-        image: Input image (numpy array or PIL Image)
+        image: Vstupní obrázek (numpy array nebo PIL Image)
         
     Returns:
-        Union[str, Dict]: OCR result as text or structured data
+        Union[str, Dict]: Výsledek OCR jako text nebo strukturovaná data
     """
-    # Implement the actual Gemini OCR logic here
-    return "Gemini OCR result"
+    api_url = "https://gemini.googleapis.com/v1/receipts:analyze"
+    api_key = os.getenv('GEMINI_API_KEY', '')
+
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY není nastaven. Prosím zadejte platný API klíč v nastavení.")
+
+    if len(api_key) < 30:  # Základní kontrola formátu klíče
+        raise ValueError("Neplatný formát GEMINI_API_KEY")
+
+    # Uložení obrázku do dočasného souboru
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+        image.save(tmp.name)
+        
+        try:
+            with open(tmp.name, "rb") as image_file:
+                image_data = image_file.read()
+
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "Authorization": f"Bearer {api_key}"
+            }
+
+            response = requests.post(api_url, headers=headers, data=image_data)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                response.raise_for_status()
+        finally:
+            os.unlink(tmp.name)
 
 def perform_ocr(image, language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Optional[Dict]]:
     """

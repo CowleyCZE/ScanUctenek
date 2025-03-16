@@ -45,24 +45,24 @@ def preprocess_image(image):
 
 def perform_gemini_ocr(image):
     """
-    Performs OCR using Google Cloud Vision API
-    Args:
-        image: Input image
-    Returns:
-        Extracted text as string
-    """
-    import streamlit as st
+    Provede OCR pomocí Gemini API.
     
+    Args:
+        image: Vstupní obrázek (numpy array)
+        
+    Returns:
+        str: Výsledek OCR jako text
+    """
     api_url = "https://gemini.googleapis.com/v1/receipts:analyze"
-    api_key = st.session_state.gemini_api_key
+    api_key = os.getenv('GEMINI_API_KEY', '')
 
     if not api_key:
-        raise ValueError("GEMINI_API_KEY není nastaven")
+        raise ValueError("GEMINI_API_KEY není nastaven. Prosím zadejte platný API klíč v nastavení.")
 
-    if len(api_key) < 30:
+    if len(api_key) < 30:  # Základní kontrola formátu klíče
         raise ValueError("Neplatný formát GEMINI_API_KEY")
 
-    # Save image to temporary file
+    # Uložení obrázku do dočasného souboru
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
         cv2.imwrite(tmp.name, image)
         
@@ -78,12 +78,8 @@ def perform_gemini_ocr(image):
             response = requests.post(api_url, headers=headers, data=image_data)
             
             if response.status_code == 200:
-                # Extract text from Gemini response
                 data = response.json()
-                text = ""
-                if "text" in data:
-                    text = data["text"]
-                return text
+                return data.get("text", "")
             else:
                 response.raise_for_status()
         finally:
