@@ -51,11 +51,16 @@ def perform_gemini_ocr(image):
     Returns:
         Extracted text as string
     """
+    import streamlit as st
+    
     api_url = "https://gemini.googleapis.com/v1/receipts:analyze"
-    api_key = os.getenv('GEMINI_API_KEY', '')
+    api_key = st.session_state.gemini_api_key
 
     if not api_key:
-        raise Exception("GEMINI_API_KEY not set")
+        raise ValueError("GEMINI_API_KEY není nastaven")
+
+    if len(api_key) < 30:
+        raise ValueError("Neplatný formát GEMINI_API_KEY")
 
     # Save image to temporary file
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:

@@ -47,6 +47,8 @@ if 'currencies' not in st.session_state:
     st.session_state.currencies = ['CZK', 'EUR']
 if 'camera_enabled' not in st.session_state:  # Add camera enabled state
     st.session_state.camera_enabled = True
+if 'gemini_api_key' not in st.session_state:
+    st.session_state.gemini_api_key = os.getenv('GEMINI_API_KEY', '')
 
 def get_svg_content():
     try:
@@ -61,7 +63,13 @@ def get_svg_content():
 
 def extract_receipt_data(image_path):
     api_url = "https://gemini.googleapis.com/v1/receipts:analyze"
-    api_key = "AIzaSyBvfpvviIHxJgOxkQeVyZCT2rnhyzI7bMo"  # Zde vložte svůj API klíč
+    api_key = st.session_state.gemini_api_key
+
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY není nastaven. Prosím zadejte platný API klíč v nastavení.")
+
+    if len(api_key) < 30:  # Základní kontrola formátu klíče
+        raise ValueError("Neplatný formát GEMINI_API_KEY")
 
     with open(image_path, "rb") as image_file:
         image_data = image_file.read()
@@ -591,10 +599,24 @@ with tabs[3]:
             gemini_api_key = st.text_input(
                 "Zadejte Gemini API klíč:",
                 type="password",
-                value=os.getenv('GEMINI_API_KEY', '')
+                value=st.session_state.gemini_api_key
             )
-            if gemini_api_key:
-                os.environ['GEMINI_API_KEY'] = gemini_api_key
+            
+            if gemini_api_key != st.session_state.gemini_api_key:
+                if len(gemini_api_key) < 30 and gemini_api_key != '':
+                    st.error("Neplatný formát API klíče")
+                else:
+                    st.session_state.gemini_api_key = gemini_api_key
+                    os.environ['GEMINI_API_KEY'] = gemini_api_key
+                    st.success("API klíč byl uložen")
+
+            # Kontrola dostupnosti API klíče
+            if not st.session_state.gemini_api_key:
+                st.warning("Pro použití Google Gemini API je nutné zadat platný API klíč")
+                if st.session_state.ocr_provider == 'gemini':
+                    st.session_state.ocr_provider = 'tesseract'
+                    st.error("OCR poskytovatel byl změněn na Tesseract kvůli chybějícímu API klíči")
+                    st.experimental_rerun()
 
         # Existing template settings
         st.subheader("Nastavení Excel šablony")
