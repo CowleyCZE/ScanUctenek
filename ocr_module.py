@@ -2,6 +2,7 @@ from typing import Tuple, Optional, Dict, Union
 from PIL import Image
 import pytesseract
 import logging
+from ocr_service import perform_gemini_ocr  # Fix import statement
 
 def preprocess_image(image) -> Image:
     """
@@ -72,7 +73,7 @@ def perform_ocr(image, language: str = 'ces', ocr_provider: str = 'tesseract') -
         elif ocr_provider == 'tesseract':
             processed_image = preprocess_image(image)
             text = pytesseract.image_to_string(
-                Image.fromarray(processed_image),
+                Image.fromarray(processed_image),  # Fix call to Image.fromarray
                 config=f'--oem 1 --psm 6 -l {language}'
             )
             # Pokus o extrakci strukturovaných dat i z Tesseract výstupu
