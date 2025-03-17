@@ -60,8 +60,6 @@ if 'currencies' not in st.session_state:
     st.session_state.currencies = ['CZK', 'EUR']
 if 'camera_enabled' not in st.session_state:  # Add camera enabled state
     st.session_state.camera_enabled = True
-if 'gemini_api_key' not in st.session_state:
-    st.session_state.gemini_api_key = os.getenv('GEMINI_API_KEY', '')
 
 def get_svg_content():
     try:
@@ -73,31 +71,6 @@ def get_svg_content():
         # Fallback if the SVG can't be loaded
         print(f"Error loading SVG: {str(e)}")
         return '<div style="color:#2196F3;font-weight:bold;font-size:24px;margin:10px;">SkenÚčtenek</div>'
-
-def extract_receipt_data(image_path):
-    api_url = "https://gemini.googleapis.com/v1/receipts:analyze"
-    api_key = st.session_state.gemini_api_key
-
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY není nastaven. Prosím zadejte platný API klíč v nastavení.")
-
-    if len(api_key) < 30:  # Základní kontrola formátu klíče
-        raise ValueError("Neplatný formát GEMINI_API_KEY")
-
-    with open(image_path, "rb") as image_file:
-        image_data = image_file.read()
-
-    headers = {
-        "Content-Type": "application/octet-stream",
-        "Authorization": f"Bearer {api_key}"
-    }
-
-    response = requests.post(api_url, headers=headers, data=image_data)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
 
 # Sidebar with categories
 with st.sidebar:
@@ -197,7 +170,7 @@ with tabs[0]:
 
                 # Try OCR with this language
                 try:
-                    extracted_text, structured_data = perform_ocr(thresh, lang_code, st.session_state.ocr_provider)
+                    extracted_text, structured_data = perform_ocr(thresh, lang_code, 'tesseract')
 
                     # If text is recognized, remember it and the language
                     if extracted_text and len(extracted_text) > len(best_text):
@@ -391,17 +364,6 @@ with tabs[1]:
         receipt_image_path = f"uploads/{uploaded_receipt.name}"
         with open(receipt_image_path, "wb") as f:
             f.write(uploaded_receipt.getbuffer())
-
-        # Extract data using Gemini API
-        try:
-            receipt_data = extract_receipt_data(receipt_image_path)
-            st.success("Data z účtenky byla úspěšně extrahována.")
-            st.json(receipt_data)  # Zobrazte extrahovaná data
-
-            # Zpracujte extrahovaná data a uložte je do session_state
-            # Příklad: st.session_state.receipts.append(receipt_data)
-        except Exception as e:
-            st.error(f"Nepodařilo se extrahovat data z účtenky: {e}")
 
 # HISTORY TAB
 with tabs[2]:
@@ -602,42 +564,12 @@ with tabs[3]:
         current_provider = st.session_state.get('ocr_provider', 'tesseract')
         new_provider = st.radio(
             "Vyberte OCR poskytovatele:",
-            options=['tesseract', 'gemini'],
-            format_func=lambda x: "Tesseract OCR" if x == 'tesseract' else "Google Gemini API",
-            index=0 if current_provider == 'tesseract' else 1
+            options=['tesseract'],
+            format_func=lambda x: "Tesseract OCR",
+            index=0
         )
         
-        if new_provider != current_provider:
-            st.session_state.ocr_provider = new_provider
-            st.rerun()
-
-        # Gemini API key configuration
-        st.write("### API Klíč pro Gemini")
-        if 'gemini_api_key' not in st.session_state:
-            st.session_state.gemini_api_key = os.getenv('GEMINI_API_KEY', '')
-
-        gemini_api_key = st.text_input(
-            "Zadejte Google Gemini API klíč:",
-            value=st.session_state.gemini_api_key,
-            type="password",
-            help="API klíč pro přístup ke službě Google Gemini. Nutné pro použití Gemini OCR."
-        )
-        
-        if gemini_api_key != st.session_state.gemini_api_key:
-            if len(gemini_api_key) < 30 and gemini_api_key != '':
-                st.error("Neplatný formát API klíče")
-            else:
-                st.session_state.gemini_api_key = gemini_api_key
-                os.environ['GEMINI_API_KEY'] = gemini_api_key
-                st.success("API klíč byl úspěšně uložen")
-                st.rerun()
-
-        # Show warning if Gemini is selected but no API key is set
-        if new_provider == 'gemini' and not st.session_state.gemini_api_key:
-            st.warning("Pro použití Google Gemini API je nutné zadat platný API klíč")
-            if st.button("Přepnout na Tesseract OCR"):
-                st.session_state.ocr_provider = 'tesseract'
-                st.rerun()
+        st.info("Používá se Tesseract OCR")
 
         # Existing template settings and other settings continue here...
         # ...existing code...

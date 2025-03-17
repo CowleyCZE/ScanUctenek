@@ -7,10 +7,6 @@ import cv2
 import numpy as np
 import re
 from datetime import datetime
-try:
-    from gemini_ocr import GeminiOCR
-except ImportError:
-    print("Warning: GeminiOCR module not found")
 import tempfile
 
 # Configure logging
@@ -99,53 +95,14 @@ def extract_structured_data(response: Dict[str, Any]) -> Dict[str, Any]:
 
     return structured_data
 
-def perform_gemini_ocr(image: Image.Image) -> Union[str, Dict[str, Any]]:
-    """
-    Provede OCR pomocí Google Cloud Vision API
-    
-    Args:
-        image: Vstupní obrázek (PIL Image)
-        
-    Returns:
-        Union[str, Dict]: Výsledek OCR jako text nebo strukturovaná data
-    """
-    api_key = os.getenv('GOOGLE_API_KEY', '')
-
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY není nastaven. Prosím zadejte platný API klíč v nastavení.")
-
-    if len(api_key) < 30:  # Základní kontrola formátu klíče
-        raise ValueError("Neplatný formát GOOGLE_API_KEY")
-
-    # Create GeminiOCR instance
-    ocr = GeminiOCR(api_key)
-    
-    # Convert image to bytes
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-        image.save(tmp.name)
-        
-        try:
-            with open(tmp.name, "rb") as image_file:
-                image_data = image_file.read()
-                
-            # Use Vision API for analysis
-            result = ocr.analyze_image(image_data)
-            if result:
-                return result
-            else:
-                raise ValueError("OCR API neposkytla žádná data")
-                
-        finally:
-            os.unlink(tmp.name)
-
 def perform_ocr(image: Any, language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Optional[Dict[str, Any]]]:
     """
-    Provede OCR pomocí zvoleného poskytovatele (Tesseract nebo Gemini)
+    Provede OCR pomocí zvoleného poskytovatele (Tesseract)
     
     Args:
         image: Vstupní obrázek (numpy array nebo PIL Image)
         language: Kód jazyka pro OCR (výchozí 'ces' pro češtinu)
-        ocr_provider: Poskytovatel OCR ('tesseract' nebo 'gemini')
+        ocr_provider: Poskytovatel OCR ('tesseract')
         
     Returns:
         Tuple obsahující:
@@ -154,19 +111,7 @@ def perform_ocr(image: Any, language: str = 'ces', ocr_provider: str = 'tesserac
     """
     logging.info(f"Performing OCR with provider: {ocr_provider}")
     try:
-        if ocr_provider == 'gemini':
-            response = perform_gemini_ocr(image)
-            structured_data = None
-            
-            if isinstance(response, dict):
-                structured_data = extract_structured_data(response)
-                text = response.get('text', '')
-            else:
-                text = str(response)
-                
-            return text, structured_data
-                
-        elif ocr_provider == 'tesseract':
+        if ocr_provider == 'tesseract':
             processed_image = preprocess_image(image)
             text = pytesseract.image_to_string(
                 Image.fromarray(processed_image),  # Fix call to Image.fromarray
