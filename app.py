@@ -140,6 +140,32 @@ with tabs[0]:
     elif 'uploaded_file' in st.session_state and st.session_state.uploaded_file is not None:
         receipt_image = st.session_state.uploaded_file
 
+    # Zjednodušený proces OCR pro jeden jazyk místo vícenásobného pokusu
+    if receipt_image is not None:
+        with st.spinner(get_text('processing_receipt', 'cs')):
+            # Convert to OpenCV format
+            image = Image.open(receipt_image)
+            image_np = np.array(image)
+
+            if len(image_np.shape) == 3 and image_np.shape[2] == 3:
+                image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+
+            # Preprocess the image
+            gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
+            _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+
+            # Perform OCR with Czech as default
+            try:
+                extracted_text, structured_data = perform_ocr(thresh, 'ces', 'tesseract')
+                # Process extracted information
+                receipt_info = extract_receipt_info(extracted_text, 'cs')
+                
+                # Store current receipt in session state
+                st.session_state.current_receipt = receipt_info
+                
+            except Exception as e:
+                st.error(f"Chyba při zpracování OCR: {str(e)}")
+
     if receipt_image is not None:
         # Display spinner during processing
         with st.spinner(get_text('processing_receipt', 'cs')):

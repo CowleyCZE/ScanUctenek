@@ -18,7 +18,7 @@ def extract_receipt_info(text, language='cs'):
     """
     logger.info(f"Extracting receipt information from text in language: {language}")
 
-    # Initialize result dictionary
+    # Initialize result dictionary with default values
     result = {
         'merchant': '',
         'date': datetime.now(),
@@ -27,47 +27,37 @@ def extract_receipt_info(text, language='cs'):
         'receipt_number': '',
         'currency': 'CZK' if language == 'cs' else 'EUR',
         'purpose': '',
-        'specific_data': {}  # New field for specific data based on receipt type
+        'specific_data': {}
     }
 
-    # Normalize the text - fix common OCR errors
-    text = text.replace('|', '1')
-    
-    # Determine receipt type first - this helps with specialized extraction
+    # Determine receipt type first
     receipt_type = determine_receipt_type(text, language)
     result['purpose'] = receipt_type
-    
-    # Extract merchant name
+
+    # Extract individual fields
     result['merchant'] = extract_merchant(text, language)
     
-    # Extract date
     date_result = extract_date(text, language)
     if date_result:
         result['date'] = date_result
-    
-    # Extract total amount
+        
     total_result = extract_total_amount(text, language)
     if total_result:
         result['total'] = total_result
-    
-    # Detect currency
+        
     result['currency'] = detect_currency(text, language)
-    
-    # Extract payment method
     result['payment_method'] = extract_payment_method(text, language)
     
-        # Extract receipt number
     receipt_num = extract_receipt_number(text, language)
     if receipt_num:
         result['receipt_number'] = receipt_num
-    
+
     # Extract specific data based on receipt type
     if receipt_type == 'Pohonné hmoty':
         result['specific_data'] = extract_fuel_data(text, language)
     elif receipt_type == 'Mýtné':
         result['specific_data'] = extract_toll_data(text, language)
-    
-    logger.info(f"Extracted receipt information: {result}")
+
     return result
 
 def determine_receipt_type(text, language):
