@@ -595,6 +595,7 @@ with tabs[3]:
         st.subheader("Nastavení OCR")
         
         # OCR provider selection
+        st.write("### OCR Poskytovatel")
         if 'ocr_provider' not in st.session_state:
             st.session_state.ocr_provider = 'tesseract'
         
@@ -603,37 +604,43 @@ with tabs[3]:
             "Vyberte OCR poskytovatele:",
             options=['tesseract', 'gemini'],
             format_func=lambda x: "Tesseract OCR" if x == 'tesseract' else "Google Gemini API",
-            index=0 if current_provider == 'tesseract' else 1,
-            key='ocr_provider_radio'  # Přidán unikátní klíč
+            index=0 if current_provider == 'tesseract' else 1
         )
         
         if new_provider != current_provider:
             st.session_state.ocr_provider = new_provider
             st.rerun()
-        
-        # Gemini API key input if Gemini selected
-        if new_provider == 'gemini':
-            gemini_api_key = st.text_input(
-                "Zadejte Google Cloud Vision API klíč:",
-                type="password",
-                value=st.session_state.gemini_api_key
-            )
-            
-            if gemini_api_key != st.session_state.gemini_api_key:
-                if len(gemini_api_key) < 30 and gemini_api_key != '':
-                    st.error("Neplatný formát API klíče")
-                else:
-                    st.session_state.gemini_api_key = gemini_api_key
-                    os.environ['GOOGLE_API_KEY'] = gemini_api_key
-                    st.success("API klíč byl uložen")
 
-            # Kontrola dostupnosti API klíče
-            if not st.session_state.gemini_api_key:
-                st.warning("Pro použití Google Gemini API je nutné zadat platný API klíč")
-                if st.session_state.ocr_provider == 'gemini':
-                    st.session_state.ocr_provider = 'tesseract'
-                    st.error("OCR poskytovatel byl změněn na Tesseract kvůli chybějícímu API klíči")
-                    st.rerun()
+        # Gemini API key configuration
+        st.write("### API Klíč pro Gemini")
+        if 'gemini_api_key' not in st.session_state:
+            st.session_state.gemini_api_key = os.getenv('GEMINI_API_KEY', '')
+
+        gemini_api_key = st.text_input(
+            "Zadejte Google Gemini API klíč:",
+            value=st.session_state.gemini_api_key,
+            type="password",
+            help="API klíč pro přístup ke službě Google Gemini. Nutné pro použití Gemini OCR."
+        )
+        
+        if gemini_api_key != st.session_state.gemini_api_key:
+            if len(gemini_api_key) < 30 and gemini_api_key != '':
+                st.error("Neplatný formát API klíče")
+            else:
+                st.session_state.gemini_api_key = gemini_api_key
+                os.environ['GEMINI_API_KEY'] = gemini_api_key
+                st.success("API klíč byl úspěšně uložen")
+                st.rerun()
+
+        # Show warning if Gemini is selected but no API key is set
+        if new_provider == 'gemini' and not st.session_state.gemini_api_key:
+            st.warning("Pro použití Google Gemini API je nutné zadat platný API klíč")
+            if st.button("Přepnout na Tesseract OCR"):
+                st.session_state.ocr_provider = 'tesseract'
+                st.rerun()
+
+        # Existing template settings and other settings continue here...
+        # ...existing code...
 
         # Existing template settings
         st.subheader("Nastavení Excel šablony")
