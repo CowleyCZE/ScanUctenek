@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Optional, Dict, Union
+from typing import Tuple, Optional, Dict, Union, Any
 from PIL import Image
 import pytesseract
 import logging
@@ -13,7 +13,7 @@ import tempfile
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def preprocess_image(image) -> Image:
+def preprocess_image(image: Any) -> Image.Image:
     """
     Preprocess the image for better OCR results.
     
@@ -42,7 +42,7 @@ def preprocess_image(image) -> Image:
     logging.info("Image preprocessing completed")
     return Image.fromarray(thresh)
 
-def extract_structured_data(response: Dict) -> Dict:
+def extract_structured_data(response: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract structured data from OCR response.
     
@@ -96,7 +96,7 @@ def extract_structured_data(response: Dict) -> Dict:
 
     return structured_data
 
-def perform_gemini_ocr(image) -> Union[str, Dict]:
+def perform_gemini_ocr(image: Image.Image) -> Union[str, Dict[str, Any]]:
     """
     Provede OCR pomocí Gemini API.
     
@@ -135,7 +135,7 @@ def perform_gemini_ocr(image) -> Union[str, Dict]:
         finally:
             os.unlink(tmp.name)
 
-def perform_ocr(image, language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Optional[Dict]]:
+def perform_ocr(image: Any, language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Optional[Dict[str, Any]]]:
     """
     Provede OCR pomocí zvoleného poskytovatele (Tesseract nebo Gemini)
     

@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 import os
 import requests
-
 from utils.ocr_utils import perform_ocr  # Fix import statement
 from utils.receipt_parser import extract_receipt_info
 from utils.excel_export import export_to_excel

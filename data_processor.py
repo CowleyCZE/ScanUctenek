@@ -1,7 +1,14 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TypedDict
 from datetime import datetime
 
-def extract_structured_data(response_data: Dict[str, Any]) -> Dict[str, Any]:
+class StructuredData(TypedDict):
+    merchant: str
+    date: Optional[datetime]
+    total: float
+    items: List[Dict[str, Any]]
+    metadata: Dict[str, Any]
+
+def extract_structured_data(response_data: Dict[str, Any]) -> StructuredData:
     """
     Extrahuje strukturovaná data z Gemini API odpovědi
     """

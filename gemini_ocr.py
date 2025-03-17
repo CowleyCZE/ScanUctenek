@@ -1,5 +1,5 @@
 import requests
-from typing import Optional
+from typing import Optional, Dict, Any
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1"
 
@@ -7,7 +7,7 @@ class GeminiOCR:
     def __init__(self, api_key: str):
         self.api_key = api_key
         
-    def analyze_image(self, image_data: bytes) -> Optional[dict]:
+    def analyze_image(self, image_data: bytes) -> Optional[Dict[str, Any]]:
         try:
             headers = {
                 "Content-Type": "application/json",
