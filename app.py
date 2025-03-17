@@ -11,6 +11,12 @@ from utils.receipt_parser import extract_receipt_info
 from utils.excel_export import export_to_excel
 from localization.translations import get_text
 
+# Inicializace session state
+if 'ocr_provider' not in st.session_state:
+    st.session_state.ocr_provider = 'tesseract'  # výchozí hodnota
+if 'selected_category' not in st.session_state:
+    st.session_state.selected_category = 'other'
+
 # Set page config
 st.set_page_config(
     page_title="SkenÚčtenek",
@@ -107,7 +113,8 @@ with st.sidebar:
     category = st.radio(
         "Vyberte kategorii účtenky",
         options=list(st.session_state.receipt_categories.keys()),
-        format_func=lambda x: st.session_state.receipt_categories[x]
+        format_func=lambda x: st.session_state.receipt_categories[x],
+        key='category_radio'  # Přidán unikátní klíč
     )
 
     if category != st.session_state.selected_category:
@@ -590,19 +597,21 @@ with tabs[3]:
         if 'ocr_provider' not in st.session_state:
             st.session_state.ocr_provider = 'tesseract'
         
-        ocr_provider = st.radio(
+        current_provider = st.session_state.get('ocr_provider', 'tesseract')
+        new_provider = st.radio(
             "Vyberte OCR poskytovatele:",
             options=['tesseract', 'gemini'],
             format_func=lambda x: "Tesseract OCR" if x == 'tesseract' else "Google Gemini API",
-            index=0 if st.session_state.ocr_provider == 'tesseract' else 1
+            index=0 if current_provider == 'tesseract' else 1,
+            key='ocr_provider_radio'  # Přidán unikátní klíč
         )
         
-        if ocr_provider != st.session_state.ocr_provider:
-            st.session_state.ocr_provider = ocr_provider
-            st.success("OCR poskytovatel změněn.")
+        if new_provider != current_provider:
+            st.session_state.ocr_provider = new_provider
+            st.rerun()
         
         # Gemini API key input if Gemini selected
-        if ocr_provider == 'gemini':
+        if new_provider == 'gemini':
             gemini_api_key = st.text_input(
                 "Zadejte Google Cloud Vision API klíč:",
                 type="password",

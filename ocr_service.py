@@ -7,7 +7,10 @@ import cv2
 import numpy as np
 import re
 from datetime import datetime
-from gemini_ocr import GeminiOCR  # Change import to use GeminiOCR class
+try:
+    from gemini_ocr import GeminiOCR
+except ImportError:
+    print("Warning: GeminiOCR module not found")
 import tempfile
 
 # Configure logging
