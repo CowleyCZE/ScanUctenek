@@ -119,7 +119,7 @@ with st.sidebar:
 
     if category != st.session_state.selected_category:
         st.session_state.selected_category = category
-        st.experimental_rerun()
+        st.rerun()  # Fix: st.experimental_rerun() -> st.rerun()
 
 # Main app
 st.title(get_text('app_name', 'cs'))
@@ -146,7 +146,7 @@ with tabs[0]:
     if camera_enabled != st.session_state.camera_enabled:
         st.session_state.camera_enabled = camera_enabled
         st.success("Nastavení kamery bylo změněno.")
-        st.experimental_rerun()
+        st.rerun()  # Fix: st.experimental_rerun() -> st.rerun()
 
     # Only show camera input if enabled
     if st.session_state.camera_enabled:
@@ -370,14 +370,14 @@ with tabs[0]:
                     
                     # Show success message and clean up
                     st.balloons()
-                    st.experimental_rerun()
+                    st.rerun()  # Fix: st.experimental_rerun() -> st.rerun()
                 except Exception as e:
                     # Show error if something goes wrong
                     st.error(f"Chyba při ukládání účtenky: {str(e)}")
                     print(f"Error saving receipt: {str(e)}")
                 finally:
                     # Always rerun to refresh the form/page
-                    st.experimental_rerun()
+                    st.rerun()
 
 # RECEIPTS TAB
 with tabs[1]:
@@ -464,7 +464,7 @@ with tabs[2]:
                                 if 0 <= original_idx < len(st.session_state.receipts):
                                     st.session_state.receipts.pop(original_idx)
                                     st.success(get_text('receipt_deleted', 'cs'))
-                                    st.experimental_rerun()
+                                    st.rerun()
                                 else:
                                     st.error("Chyba při mazání účtenky - neplatný index")
                             except Exception as e:
@@ -480,7 +480,7 @@ with tabs[2]:
             # Offer a reset button if things are really broken
             if st.button("Resetovat historii účtenek"):
                 st.session_state.receipts = []
-                st.experimental_rerun()
+                st.rerun()
 
 # EXPORT TAB
 with tabs[3]:
@@ -609,7 +609,7 @@ with tabs[3]:
         
         if new_provider != current_provider:
             st.session_state.ocr_provider = new_provider
-            st.experimental_rerun()
+            st.rerun()
         
         # Gemini API key input if Gemini selected
         if new_provider == 'gemini':
@@ -633,7 +633,7 @@ with tabs[3]:
                 if st.session_state.ocr_provider == 'gemini':
                     st.session_state.ocr_provider = 'tesseract'
                     st.error("OCR poskytovatel byl změněn na Tesseract kvůli chybějícímu API klíči")
-                    st.experimental_rerun()
+                    st.rerun()
 
         # Existing template settings
         st.subheader("Nastavení Excel šablony")
@@ -659,7 +659,7 @@ with tabs[3]:
                     st.session_state.receipts = []
                     st.session_state.current_receipt = None
                     st.success(get_text('all_receipts_deleted', 'cs'))
-                    st.experimental_rerun()
+                    st.rerun()
             else:
                 st.info(get_text('no_receipts_to_delete', 'cs'))
 
@@ -711,7 +711,7 @@ with tabs[3]:
                     if st.button(f"❌ {word}", key=f"remove_{selected_field}_{selected_language}_{i}"):
                         if remove_word(selected_field, selected_language, word):
                             st.success(f"Slovo '{word}' bylo odstraněno.")
-                            st.experimental_rerun()  # Fix: st.rerun() -> st.experimental_rerun()
+                            st.rerun()
                         else:
                             st.error(f"Nepodařilo se odstranit slovo '{word}'.")
 
@@ -726,7 +726,7 @@ with tabs[3]:
             if new_word:
                 if add_word(selected_field, selected_language, new_word):
                     st.success(f"Slovo '{new_word}' bylo přidáno.")
-                    st.experimental_rerun()  # Fix: st.rerun() -> st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error(f"Nepodařilo se přidat slovo '{new_word}'.")
             else:
@@ -740,7 +740,7 @@ with tabs[3]:
             if st.button(f"Resetovat pole '{selected_field}' pro jazyk '{selected_language}'"):
                 if reset_wordlist(selected_field, selected_language):
                     st.success(f"Slovník pro pole '{selected_field}' v jazyce '{selected_language}' byl obnoven na výchozí hodnoty.")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovník.")
 
@@ -748,7 +748,7 @@ with tabs[3]:
             if st.button(f"Resetovat celé pole '{selected_field}'"):
                 if reset_wordlist(selected_field):
                     st.success(f"Slovník pro pole '{selected_field}' byl obnoven na výchozí hodnoty pro všechny jazyky.")
-                    st.experimental_rerun()  # Fix: st.rerun() -> st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovník.")
 
@@ -756,7 +756,7 @@ with tabs[3]:
             if st.button("Resetovat všechny slovníky"):
                 if reset_wordlist():
                     st.success("Všechny slovníky byly obnoveny na výchozí hodnoty.")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovníky.")
 
