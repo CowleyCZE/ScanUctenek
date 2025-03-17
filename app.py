@@ -370,6 +370,7 @@ with tabs[0]:
                     
                     # Show success message and clean up
                     st.balloons()
+                    st.experimental_rerun()
                 except Exception as e:
                     # Show error if something goes wrong
                     st.error(f"Chyba při ukládání účtenky: {str(e)}")
@@ -608,7 +609,7 @@ with tabs[3]:
         
         if new_provider != current_provider:
             st.session_state.ocr_provider = new_provider
-            st.rerun()
+            st.experimental_rerun()
         
         # Gemini API key input if Gemini selected
         if new_provider == 'gemini':
@@ -710,7 +711,7 @@ with tabs[3]:
                     if st.button(f"❌ {word}", key=f"remove_{selected_field}_{selected_language}_{i}"):
                         if remove_word(selected_field, selected_language, word):
                             st.success(f"Slovo '{word}' bylo odstraněno.")
-                            st.rerun()
+                            st.experimental_rerun()  # Fix: st.rerun() -> st.experimental_rerun()
                         else:
                             st.error(f"Nepodařilo se odstranit slovo '{word}'.")
 
@@ -725,7 +726,7 @@ with tabs[3]:
             if new_word:
                 if add_word(selected_field, selected_language, new_word):
                     st.success(f"Slovo '{new_word}' bylo přidáno.")
-                    st.rerun()
+                    st.experimental_rerun()  # Fix: st.rerun() -> st.experimental_rerun()
                 else:
                     st.error(f"Nepodařilo se přidat slovo '{new_word}'.")
             else:
@@ -747,7 +748,7 @@ with tabs[3]:
             if st.button(f"Resetovat celé pole '{selected_field}'"):
                 if reset_wordlist(selected_field):
                     st.success(f"Slovník pro pole '{selected_field}' byl obnoven na výchozí hodnoty pro všechny jazyky.")
-                    st.rerun()
+                    st.experimental_rerun()  # Fix: st.rerun() -> st.experimental_rerun()
                 else:
                     st.error("Nepodařilo se obnovit slovník.")
 
