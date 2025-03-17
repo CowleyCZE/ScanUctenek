@@ -604,7 +604,7 @@ with tabs[3]:
         # Gemini API key input if Gemini selected
         if ocr_provider == 'gemini':
             gemini_api_key = st.text_input(
-                "Zadejte Gemini API klíč:",
+                "Zadejte Google Cloud Vision API klíč:",
                 type="password",
                 value=st.session_state.gemini_api_key
             )
@@ -614,7 +614,7 @@ with tabs[3]:
                     st.error("Neplatný formát API klíče")
                 else:
                     st.session_state.gemini_api_key = gemini_api_key
-                    os.environ['GEMINI_API_KEY'] = gemini_api_key
+                    os.environ['GOOGLE_API_KEY'] = gemini_api_key
                     st.success("API klíč byl uložen")
 
             # Kontrola dostupnosti API klíče
