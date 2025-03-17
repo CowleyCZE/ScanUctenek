@@ -1,12 +1,14 @@
+import os
 from typing import Tuple, Optional, Dict, Union
 from PIL import Image
 import pytesseract
 import logging
-from ocr_service import perform_gemini_ocr  # Fix import statement
 import cv2
 import numpy as np
 import re
 from datetime import datetime
+from gemini_ocr import GeminiOCR  # Change import to use GeminiOCR class
+import tempfile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -96,16 +98,42 @@ def extract_structured_data(response: Dict) -> Dict:
 
 def perform_gemini_ocr(image) -> Union[str, Dict]:
     """
-    Placeholder function for Gemini OCR.
+    Provede OCR pomocí Gemini API.
     
     Args:
-        image: Input image (numpy array or PIL Image)
+        image: Vstupní obrázek (numpy array nebo PIL Image)
         
     Returns:
-        Union[str, Dict]: OCR result as text or structured data
+        Union[str, Dict]: Výsledek OCR jako text nebo strukturovaná data
     """
-    # Implement the actual Gemini OCR logic here
-    return "Gemini OCR result"
+    api_key = os.getenv('GEMINI_API_KEY', '')
+
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY není nastaven. Prosím zadejte platný API klíč v nastavení.")
+
+    if len(api_key) < 30:  # Základní kontrola formátu klíče
+        raise ValueError("Neplatný formát GEMINI_API_KEY")
+
+    # Create GeminiOCR instance
+    ocr = GeminiOCR(api_key)
+    
+    # Convert image to bytes
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+        image.save(tmp.name)
+        
+        try:
+            with open(tmp.name, "rb") as image_file:
+                image_data = image_file.read()
+                
+            # Use GeminiOCR class for analysis
+            result = ocr.analyze_image(image_data)
+            if result:
+                return result
+            else:
+                raise ValueError("Gemini API neposkytla žádná data")
+                
+        finally:
+            os.unlink(tmp.name)
 
 def perform_ocr(image, language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Optional[Dict]]:
     """
