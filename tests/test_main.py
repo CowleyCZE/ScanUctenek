@@ -32,11 +32,11 @@ class TestSkenUctenek(unittest.TestCase):
 
     def test_perform_ocr(self):
         """Test OCR zpracování obrázku."""
-        text, structured_data = perform_ocr(self.test_image, language='ces')
+        text, struct_data = perform_ocr(self.test_image, language='ces')
         self.assertIsInstance(text, str, "OCR výstup by měl být typu string")
-        self.assertIsInstance(structured_data, dict, "Strukturovaná data by měla být typu dict")
-        self.assertIn('merchant', structured_data, "Strukturovaná data by měla obsahovat pole 'merchant'")
-        self.assertIn('total', structured_data, "Strukturovaná data by měla obsahovat pole 'total'")
+        self.assertIsInstance(struct_data, dict, "Strukturovaná data by měla být typu dict")
+        self.assertIn('merchant', struct_data, "Strukturovaná data musí obsahovat pole 'merchant'")
+        self.assertIn('total', struct_data, "Strukturovaná data musí obsahovat pole 'total'")
 
     def test_extract_receipt_info(self):
         """Test extrakce informací z textu účtenky."""

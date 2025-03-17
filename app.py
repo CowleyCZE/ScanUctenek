@@ -177,34 +177,8 @@ with tabs[0]:
                         best_text = extracted_text
                         detected_language = 'cs' if lang_code == 'ces' else ('fr' if lang_code == 'fra' else 'de')
 
-                    # Process structured data if available
-                    if structured_data:
-                        try:
-                            receipt_info = {
-                                'merchant': structured_data.get('merchant', ''),
-                                'date': structured_data.get('date') or datetime.now(),
-                                'total': structured_data.get('total', 0.0),
-                                'items': structured_data.get('items', []),
-                                'metadata': structured_data.get('metadata', {})
-                            }
-                        except Exception as e:
-                            st.warning(f"Chyba při zpracování strukturovaných dat: {str(e)}")
-                            receipt_info = extract_receipt_info(best_text, detected_language)
-                    else:
-                        receipt_info = extract_receipt_info(best_text, detected_language)
-
-                except ValueError as e:
-                    st.error(f"Chyba API klíče: {str(e)}")
-                    st.info("Použiji záložní OCR metodu (Tesseract)")
-                    try:
-                        extracted_text, _ = perform_ocr(thresh, lang_code, 'tesseract')
-                        if extracted_text and len(extracted_text) > len(best_text):
-                            best_text = extracted_text
-                            detected_language = 'cs' if lang_code == 'ces' else ('fr' if lang_code == 'fra' else 'de')
-                        receipt_info = extract_receipt_info(best_text, detected_language)
-                    except Exception as ocr_error:
-                        st.error(f"Chyba při záložním OCR zpracování: {str(ocr_error)}")
-                        continue
+                    # Process extracted information
+                    receipt_info = extract_receipt_info(best_text, detected_language)
 
                 except Exception as e:
                     st.warning(f"Chyba při zpracování jazyka {lang_code}: {str(e)}")
@@ -555,20 +529,6 @@ with tabs[3]:
     # Basic settings tab
     with settings_tabs[0]:
         st.subheader("Nastavení OCR")
-        
-        # OCR provider selection
-        st.write("### OCR Poskytovatel")
-        if 'ocr_provider' not in st.session_state:
-            st.session_state.ocr_provider = 'tesseract'
-        
-        current_provider = st.session_state.get('ocr_provider', 'tesseract')
-        new_provider = st.radio(
-            "Vyberte OCR poskytovatele:",
-            options=['tesseract'],
-            format_func=lambda x: "Tesseract OCR",
-            index=0
-        )
-        
         st.info("Používá se Tesseract OCR")
 
         # Existing template settings and other settings continue here...

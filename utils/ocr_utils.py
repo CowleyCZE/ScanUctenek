@@ -45,23 +45,36 @@ def preprocess_image(image):
 
 def perform_ocr(image, language='ces', ocr_provider='tesseract'):
     """
-    Performs OCR on the provided image using selected provider
+    Performs OCR on the provided image using Tesseract
     Args:
         image: Input image (numpy array)
         language: Language for OCR
         ocr_provider: 'tesseract'
     Returns:
-        Extracted text as string
+        Tuple[str, dict]: (extracted_text, structured_data)
     """
     try:
-        # Use existing Tesseract OCR code
         processed_image = preprocess_image(image)
         pil_image = Image.fromarray(processed_image)
         custom_config = f'--oem 1 --psm 6 -l {language}'
-        return pytesseract.image_to_string(pil_image, config=custom_config)
+        
+        # Get text from image
+        text = pytesseract.image_to_string(pil_image, config=custom_config)
+        
+        # Create basic structured data
+        structured_data = {
+            'merchant': '',
+            'date': None,
+            'total': 0.0,
+            'items': [],
+            'metadata': {}
+        }
+        
+        return text, structured_data
+        
     except Exception as e:
-        print(f"OCR error with {ocr_provider}: {str(e)}")
-        return f"OCR error: {str(e)}"
+        print(f"OCR error: {str(e)}")
+        return "", {}
 
 def extract_text_blocks(image, language='ces'):
     """
