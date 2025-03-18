@@ -105,9 +105,9 @@ def extract_receipt_info(text, language='cs'):
     if receipt_num:
         result['receipt_number'] = receipt_num
 
-    if receipt_type == 'fuel':
+    if receipt_type == 'Pohonné hmoty':
         result['specific_data'] = extract_fuel_data(text, detected_language)
-    elif receipt_type == 'toll':
+    elif receipt_type == 'Mýtné':
         result['specific_data'] = extract_toll_data(text, detected_language)
 
     return result
@@ -125,7 +125,7 @@ def determine_receipt_type(text, language):
                 re.search(r'[lL]itre', text) or
                 re.search(r'[gG]azole', text) or
                 re.search(r'[dD]iesel', text)):
-                return 'fuel'
+                return 'Pohonné hmoty'  # Changed from 'fuel' to 'Pohonné hmoty'
     
     # Check for toll-related keywords
     toll_words = get_words('toll', language)
@@ -136,15 +136,15 @@ def determine_receipt_type(text, language):
                 re.search(r'[tT]rajet', text) or 
                 re.search(r'[sS]ortie', text) or
                 re.search(r'[eE]ntrée', text)):
-                return 'toll'
+                return 'Mýtné'  # Changed from 'toll' to 'Mýtné'
     
     # Check for accommodation-related keywords
     accommodation_words = get_words('accommodation', language)
     for keyword in accommodation_words:
         if keyword.lower() in text.lower():
-            return 'accommodation'
+            return 'Ubytování'  # Changed from 'accommodation' to 'Ubytování'
     
-    return 'other'
+    return 'Ostatní'  # Already correct
 
 def extract_merchant(text, language):
     """Extract merchant name from receipt text"""
