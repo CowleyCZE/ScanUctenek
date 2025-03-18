@@ -37,22 +37,7 @@ if 'current_receipt' not in st.session_state:
 if 'excel_file' not in st.session_state:
     st.session_state.excel_file = None
 if 'receipt_categories' not in st.session_state:
-    st.session_state.receipt_categories = {
-        "Potraviny": [],
-        "Drogerie": [],
-        "Oblečení": [],
-        "Elektronika": [],
-        "Ostatní": []
-    }
-if 'receipt_categories' not in st.session_state:
-    st.session_state.receipt_categories = {
-        'fuel': 'Pohonné hmoty',
-        'toll': 'Mýtné',
-        'accommodation': 'Ubytování',
-        'food': 'Stravování',
-        'other': 'Ostatní'
-    }
-if 'receipt_categories' not in st.session_state:
+    # Jednotná inicializace kategorií
     st.session_state.receipt_categories = {
         'fuel': get_text('category_fuel', 'cs'),
         'toll': get_text('category_toll', 'cs'),
@@ -93,7 +78,7 @@ with st.sidebar:
     st.subheader("Kategorie účtenek")
     category = st.radio(
         "Vyberte kategorii účtenky",
-        options=list(st.session_state.receipt_categories.keys()),
+        options=['fuel', 'toll', 'accommodation', 'food', 'other'],
         format_func=lambda x: st.session_state.receipt_categories[x],
         key='category_radio'  # Přidán unikátní klíč
     )
@@ -245,19 +230,31 @@ with tabs[0]:
                 receipt_number = st.text_input(get_text('receipt_number', 'cs'), 
                                              value=receipt_info.get('receipt_number', ''))
 
-                # Kategorie účtenky
-                category_options = list(st.session_state.receipt_categories.keys())
-                category_display = [st.session_state.receipt_categories[k] for k in category_options]
-                category_index = category_options.index(receipt_info.get('purpose', 'fuel')) # Changed from 'other' to get purpose with 'fuel' default
-
-                if receipt_info.get('purpose') in category_options:
-                    category_index = category_options.index(receipt_info['purpose'])
+                # Kategorie účtenky - opravené mapování
+                category_mapping = {
+                    'fuel': 'Pohonné hmoty',
+                    'toll': 'Mýtné',
+                    'accommodation': 'Ubytování',
+                    'food': 'Stravování',
+                    'other': 'Ostatní'
+                }
+                
+                # Vytvoření seznamu možností pro selectbox
+                category_options = list(category_mapping.keys())
+                category_display = [category_mapping[k] for k in category_options]
+                
+                # Získání aktuální kategorie nebo výchozí hodnoty
+                current_purpose = receipt_info.get('purpose', 'other')
+                if current_purpose not in category_options:
+                    current_purpose = 'other'
+                    
+                category_index = category_options.index(current_purpose)
 
                 category = st.selectbox(
                     get_text('category', 'cs'),
                     options=category_options,
                     index=category_index,
-                    format_func=lambda x: st.session_state.receipt_categories[x]
+                    format_func=lambda x: category_mapping[x]
                 )
 
             with col2:
@@ -397,8 +394,10 @@ with tabs[2]:
                         total_str = '0.00'
 
                     # Získat název kategorie pro zobrazení
-                    category_key = receipt.get('purpose', 'other')
-                    category_display = st.session_state.receipt_categories.get(category_key, get_text('category_other', 'cs'))
+                    category_key = receipt.get('category', 'other')  # Změněno z 'purpose' na 'category'
+                    if category_key not in st.session_state.receipt_categories:
+                        category_key = 'other'
+                    category_display = st.session_state.receipt_categories[category_key]
 
                     # Formátování měny
                     currency = receipt.get('currency', 'CZK')
