@@ -73,7 +73,7 @@ def determine_receipt_type(text, language):
                 re.search(r'[lL]itre', text) or
                 re.search(r'[gG]azole', text) or
                 re.search(r'[dD]iesel', text)):
-                return 'fuel'  # Changed from 'Pohonné hmoty' to 'fuel'
+                return 'fuel'
     
     # Check for toll-related keywords
     toll_words = get_words('toll', language)
@@ -84,15 +84,15 @@ def determine_receipt_type(text, language):
                 re.search(r'[tT]rajet', text) or 
                 re.search(r'[sS]ortie', text) or
                 re.search(r'[eE]ntrée', text)):
-                return 'toll'  # Changed from 'Mýtné' to 'toll'
+                return 'toll'
     
     # Check for accommodation-related keywords
     accommodation_words = get_words('accommodation', language)
     for keyword in accommodation_words:
         if keyword.lower() in text.lower():
-            return 'accommodation'  # Changed from 'Bydlení' to 'accommodation'
+            return 'accommodation'
     
-    return 'other'  # Changed from 'Ostatní' to 'other'
+    return 'other'
 
 def extract_merchant(text, language):
     """Extract merchant name from receipt text"""
@@ -120,18 +120,26 @@ def extract_merchant(text, language):
         if merchant_found:
             break
     
-    # If no merchant found by keywords, check for known fuel stations or toll companies
-    known_merchants = [
-        'AVIA', 'GULF', 'OMV', 'TOTALENERGIES', 'TOTAL', 'SHELL', 'MOL', 'ORLEN', 
-        'BENZINA', 'SANEF', 'COFIROUTE', 'VINCI', 'AUTOROUTES'
-    ]
+    # Updated known merchants with more variations
+    known_merchants = {
+        'AVIA': r'AVIA\s*(?:SELF)*\s*(?:SERVICE)*',
+        'GULF': r'GULF\s*(?:OIL)*\s*(?:STATION)*',
+        'OMV': r'OMV\s*(?:TANK)*\s*(?:STATION)*',
+        'TOTALENERGIES': r'TOTAL(?:\s*ENERGIES)*',
+        'SHELL': r'SHELL\s*(?:STATION)*',
+        'MOL': r'MOL\s*(?:STATION)*',
+        'ORLEN': r'ORLEN\s*(?:BENZINA)*',
+        'BENZINA': r'BENZINA\s*(?:PLUS)*',
+        'SANEF': r'SANEF\s*(?:PEAGE)*',
+        'COFIROUTE': r'COFIROUTE\s*(?:AUTOROUTE)*',
+        'VINCI': r'VINCI\s*(?:AUTOROUTES)*'
+    }
     
-    for line in lines[:5]:  # Check first 5 lines
-        for merchant in known_merchants:
-            if merchant in line.upper():
-                # Extract the full merchant name (line containing the keyword)
-                return line.strip()
-    
+    for name, pattern in known_merchants.items():
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(0).strip()
+
     # If still no merchant found, use the first line approach
     total_terms = ['celkem', 'total', 'suma', 'součet', 'gesamt', 'summe', 'montant', 'somme']
     valid_lines = [line for line in lines[:5] if len(line.strip()) > 3
@@ -289,7 +297,6 @@ def extract_payment_method(text, language):
 
 def extract_receipt_number(text, language):
     """Extract receipt number from receipt text"""
-    # Enhanced patterns for receipt numbers
     receipt_patterns = {
         'cs': [
             r'Číslo\s*účtenky:?\s*[:#]?\s*(\w+[-/]?\w+)',
@@ -298,7 +305,16 @@ def extract_receipt_number(text, language):
             r'Účtenka\s*(?:č\.):?\s*[:#]?\s*(\w+[-/]?\w+)',
             r'Číslo\s*dokladu:?\s*[:#]?\s*(\w+[-/]?\w+)'
         ],
-        # Other language patterns here...
+        'fr': [
+            r'(?:N°|Numero)\s*(?:ticket|recu):?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Ticket\s*(?:N°):?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Reference:?\s*[:#]?\s*(\w+[-/]?\w+)'
+        ],
+        'de': [
+            r'Beleg(?:nummer|nr):?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Quittung\s*(?:Nr):?\s*[:#]?\s*(\w+[-/]?\w+)',
+            r'Rechnungsnummer:?\s*[:#]?\s*(\w+[-/]?\w+)'
+        ]
     }
     
     # Get patterns for the selected language or default to Czech

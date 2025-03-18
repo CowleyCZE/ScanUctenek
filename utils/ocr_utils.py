@@ -6,6 +6,11 @@ import os
 import re
 import tempfile
 import requests
+import logging
+
+# Configure logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def preprocess_image(image):
     """
@@ -54,26 +59,42 @@ def perform_ocr(image, language='ces', ocr_provider='tesseract'):
         Tuple[str, dict]: (extracted_text, structured_data)
     """
     try:
+        if image is None:
+            raise ValueError("Vstupní obrázek je prázdný")
+            
         processed_image = preprocess_image(image)
+        if processed_image is None:
+            raise ValueError("Předzpracování obrázku selhalo")
+            
         pil_image = Image.fromarray(processed_image)
         custom_config = f'--oem 1 --psm 6 -l {language}'
         
-        # Get text from image
-        text = pytesseract.image_to_string(pil_image, config=custom_config)
-        
+        # Get text from image with better error handling
+        try:
+            text = pytesseract.image_to_string(pil_image, config=custom_config)
+            if not text.strip():
+                logger.warning("OCR nedetekoval žádný text")
+        except pytesseract.TesseractError as te:
+            logger.error(f"Tesseract chyba: {str(te)}")
+            return "", {}
+            
         # Create basic structured data
         structured_data = {
             'merchant': '',
             'date': None,
             'total': 0.0,
             'items': [],
-            'metadata': {}
+            'metadata': {
+                'language': language,
+                'confidence': None,
+                'processing_time': None
+            }
         }
         
         return text, structured_data
         
     except Exception as e:
-        print(f"OCR error: {str(e)}")
+        logger.error(f"OCR chyba: {str(e)}")
         return "", {}
 
 def extract_text_blocks(image, language='ces'):
