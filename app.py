@@ -13,7 +13,7 @@ from localization.translations import get_text
 
 # Inicializace session state
 if 'ocr_provider' not in st.session_state:
-    st.session_state.ocr_provider = 'tesseract'  # výchozí hodnota
+    st.session_state.ocr_provider = 'tesseract'  # pouze tesseract je podporován
 if 'selected_category' not in st.session_state:
     st.session_state.selected_category = 'other'
 
@@ -555,7 +555,9 @@ with tabs[3]:
     # Basic settings tab
     with settings_tabs[0]:
         st.subheader("Nastavení OCR")
-        st.info("Používá se Tesseract OCR")
+        st.info("Aplikace používá Tesseract OCR pro rozpoznávání textu z účtenek.")
+        
+        # Odstranit nadbytečné nastavení pro OCR providery
 
         # Existing template settings and other settings continue here...
         # ...existing code...
