@@ -46,6 +46,14 @@ if 'receipt_categories' not in st.session_state:
     }
 if 'receipt_categories' not in st.session_state:
     st.session_state.receipt_categories = {
+        'fuel': 'Pohonné hmoty',
+        'toll': 'Mýtné',
+        'accommodation': 'Ubytování',
+        'food': 'Stravování',
+        'other': 'Ostatní'
+    }
+if 'receipt_categories' not in st.session_state:
+    st.session_state.receipt_categories = {
         'fuel': get_text('category_fuel', 'cs'),
         'toll': get_text('category_toll', 'cs'),
         'accommodation': get_text('category_accommodation', 'cs'),
@@ -240,10 +248,10 @@ with tabs[0]:
                 # Kategorie účtenky
                 category_options = list(st.session_state.receipt_categories.keys())
                 category_display = [st.session_state.receipt_categories[k] for k in category_options]
-                category_index = 0  # Default to first category
+                category_index = category_options.index('other')  # Default to 'other'
 
-                if 'category' in receipt_info and receipt_info['category'] in category_options:
-                    category_index = category_options.index(receipt_info['category'])
+                if receipt_info.get('purpose') in category_options:
+                    category_index = category_options.index(receipt_info['purpose'])
 
                 category = st.selectbox(
                     get_text('category', 'cs'),
@@ -389,7 +397,7 @@ with tabs[2]:
                         total_str = '0.00'
 
                     # Získat název kategorie pro zobrazení
-                    category_key = receipt.get('category', 'other')
+                    category_key = receipt.get('purpose', 'other')
                     category_display = st.session_state.receipt_categories.get(category_key, get_text('category_other', 'cs'))
 
                     # Formátování měny

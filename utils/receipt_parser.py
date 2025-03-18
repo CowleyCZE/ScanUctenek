@@ -53,9 +53,9 @@ def extract_receipt_info(text, language='cs'):
         result['receipt_number'] = receipt_num
 
     # Extract specific data based on receipt type
-    if receipt_type == 'Pohonné hmoty':
+    if receipt_type == 'fuel':
         result['specific_data'] = extract_fuel_data(text, language)
-    elif receipt_type == 'Mýtné':
+    elif receipt_type == 'toll':
         result['specific_data'] = extract_toll_data(text, language)
 
     return result
@@ -73,7 +73,7 @@ def determine_receipt_type(text, language):
                 re.search(r'[lL]itre', text) or
                 re.search(r'[gG]azole', text) or
                 re.search(r'[dD]iesel', text)):
-                return 'Pohonné hmoty'
+                return 'fuel'  # Changed from 'Pohonné hmoty' to 'fuel'
     
     # Check for toll-related keywords
     toll_words = get_words('toll', language)
@@ -83,21 +83,16 @@ def determine_receipt_type(text, language):
             if (re.search(r'[kK]m', text) or 
                 re.search(r'[tT]rajet', text) or 
                 re.search(r'[sS]ortie', text) or
-                re.search(r'[eE]ntrée', text) or
-                re.search(r'SANEF', text) or
-                re.search(r'COFIROUTE', text) or
-                re.search(r'VINCI', text) or
-                re.search(r'AUTOROUTES', text)):
-                return 'Mýtné'
+                re.search(r'[eE]ntrée', text)):
+                return 'toll'  # Changed from 'Mýtné' to 'toll'
     
     # Check for accommodation-related keywords
     accommodation_words = get_words('accommodation', language)
     for keyword in accommodation_words:
         if keyword.lower() in text.lower():
-            return 'Bydlení'
+            return 'accommodation'  # Changed from 'Bydlení' to 'accommodation'
     
-    # Default to Other
-    return 'Ostatní'
+    return 'other'  # Changed from 'Ostatní' to 'other'
 
 def extract_merchant(text, language):
     """Extract merchant name from receipt text"""
