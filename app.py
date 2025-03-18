@@ -248,7 +248,7 @@ with tabs[0]:
                 # Kategorie účtenky
                 category_options = list(st.session_state.receipt_categories.keys())
                 category_display = [st.session_state.receipt_categories[k] for k in category_options]
-                category_index = category_options.index('other')  # Default to 'other'
+                category_index = category_options.index(receipt_info.get('purpose', 'fuel')) # Changed from 'other' to get purpose with 'fuel' default
 
                 if receipt_info.get('purpose') in category_options:
                     category_index = category_options.index(receipt_info['purpose'])
