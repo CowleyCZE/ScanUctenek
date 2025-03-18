@@ -177,43 +177,38 @@ with tabs[0]:
             # Try OCR with all supported languages to find the best match
             languages = ['ces', 'fra', 'deu']
             best_text = ""
-            detected_language = 'cs'  # Default to Czech
-
+            
             # Create progress bar for language detection
             lang_progress = st.progress(0)
-
-            for i, lang_code in enumerate(languages):
-                lang_name = "češtiny" if lang_code == 'ces' else ("francouzštiny" if lang_code == 'fra' else "němčiny")
-                st.write(f"Zkouším rozpoznat text pomocí {lang_name}...")
-                lang_progress.progress((i+1)/len(languages))
-
-                # Try OCR with this language
-                try:
-                    extracted_text, structured_data = perform_ocr(thresh, lang_code, 'tesseract')
-
-                    # If text is recognized, remember it and the language
-                    if extracted_text and len(extracted_text) > len(best_text):
-                        best_text = extracted_text
-                        detected_language = 'cs' if lang_code == 'ces' else ('fr' if lang_code == 'fra' else 'de')
-
-                    # Process extracted information
-                    receipt_info = extract_receipt_info(best_text, detected_language)
-
-                except Exception as e:
-                    st.warning(f"Chyba při zpracování jazyka {lang_code}: {str(e)}")
-                    continue
-
-            # Use the best detected language for further processing
-            extracted_text = best_text
-
-            # Extract receipt information with the detected language
-            receipt_info = extract_receipt_info(extracted_text, detected_language)
-
-            # Show detected language
-            st.success(f"Detekován jazyk účtenky: {detected_language == 'cs' and 'Čeština' or (detected_language == 'fr' and 'Francouzština' or 'Němčina')}")
-
-            # Store current receipt in session state
-            st.session_state.current_receipt = receipt_info
+            
+            # Get detected language from receipt text
+            from utils.receipt_parser import detect_language
+            detected_language = detect_language(extracted_text)
+            st.write(f"Detekován jazyk: {detected_language}")
+            
+            # Map Tesseract language codes
+            lang_code_map = {
+                'cs': 'ces',
+                'fr': 'fra',
+                'de': 'deu'
+            }
+            
+            # Perform OCR using detected language
+            try:
+                extracted_text, structured_data = perform_ocr(thresh, lang_code_map[detected_language], 'tesseract')
+                receipt_info = extract_receipt_info(extracted_text, detected_language)
+                st.session_state.current_receipt = receipt_info
+                
+                # Show detected language with proper name
+                lang_names = {
+                    'cs': 'Čeština',
+                    'fr': 'Francouzština', 
+                    'de': 'Němčina'
+                }
+                st.success(f"Detekován jazyk účtenky: {lang_names[detected_language]}")
+                
+            except Exception as e:
+                st.error(f"Chyba při zpracování jazyka {detected_language}: {str(e)}")
 
         # Display results and allow editing
         st.subheader(get_text('extracted_info', 'cs'))

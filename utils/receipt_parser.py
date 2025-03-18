@@ -7,6 +7,57 @@ from utils.word_lists import get_words
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def detect_language(text):
+    """
+    Detect the language of the receipt text
+    Args:
+        text: OCR extracted text from receipt
+    Returns:
+        str: Detected language code ('cs', 'fr', 'de')
+    """
+    # Score counter for each language
+    scores = {'cs': 0, 'fr': 0, 'de': 0}
+    
+    # Get wordlists for each field and language
+    fields = ['date', 'total', 'payment_method', 'merchant', 'currency']
+    
+    # Count matches for each language
+    for field in fields:
+        for lang in scores.keys():
+            words = get_words(field, lang)
+            for word in words:
+                if word.lower() in text.lower():
+                    scores[lang] += 1
+
+    # Additional language-specific patterns
+    # Czech patterns
+    if re.search(r'č\.|číslo|kč|částka|celkem|dph', text.lower()):
+        scores['cs'] += 2
+    if re.search(r'[áčďéěíňóřšťúůýž]', text.lower()):
+        scores['cs'] += 2
+
+    # French patterns
+    if re.search(r'n°|tva|ttc|eur|montant|total|prix', text.lower()):
+        scores['fr'] += 2
+    if re.search(r'[àâçèéêëîïôûùü]', text.lower()):
+        scores['fr'] += 2
+
+    # German patterns
+    if re.search(r'nr\.|summe|gesamt|eur|preis|danke', text.lower()):
+        scores['de'] += 2
+    if re.search(r'[äöüß]', text.lower()):
+        scores['de'] += 2
+
+    # Get language with highest score
+    max_score = max(scores.values())
+    if max_score == 0:
+        return 'cs'  # Default to Czech if no clear indicators
+    
+    # Return the language with highest score
+    for lang, score in scores.items():
+        if score == max_score:
+            return lang
+
 def extract_receipt_info(text, language='cs'):
     """
     Extract relevant information from receipt text
@@ -16,7 +67,10 @@ def extract_receipt_info(text, language='cs'):
     Returns:
         Dictionary with extracted information
     """
-    logger.info(f"Extracting receipt information from text in language: {language}")
+    # Detect language if not specified or override provided language
+    detected_language = detect_language(text)
+    
+    logger.info(f"Extracting receipt information from text in language: {detected_language}")
 
     # Initialize result dictionary with default values
     result = {
@@ -25,38 +79,36 @@ def extract_receipt_info(text, language='cs'):
         'total': 0.0,
         'payment_method': '',
         'receipt_number': '',
-        'currency': 'CZK' if language == 'cs' else 'EUR',
+        'currency': 'CZK' if detected_language == 'cs' else 'EUR',
         'purpose': '',
         'specific_data': {}
     }
 
-    # Determine receipt type first
-    receipt_type = determine_receipt_type(text, language)
+    # Use detected language for all subsequent processing
+    receipt_type = determine_receipt_type(text, detected_language)
     result['purpose'] = receipt_type
 
-    # Extract individual fields
-    result['merchant'] = extract_merchant(text, language)
+    result['merchant'] = extract_merchant(text, detected_language)
     
-    date_result = extract_date(text, language)
+    date_result = extract_date(text, detected_language)
     if date_result:
         result['date'] = date_result
         
-    total_result = extract_total_amount(text, language)
+    total_result = extract_total_amount(text, detected_language)
     if total_result:
         result['total'] = total_result
         
-    result['currency'] = detect_currency(text, language)
-    result['payment_method'] = extract_payment_method(text, language)
+    result['currency'] = detect_currency(text, detected_language)
+    result['payment_method'] = extract_payment_method(text, detected_language)
     
-    receipt_num = extract_receipt_number(text, language)
+    receipt_num = extract_receipt_number(text, detected_language)
     if receipt_num:
         result['receipt_number'] = receipt_num
 
-    # Extract specific data based on receipt type
     if receipt_type == 'fuel':
-        result['specific_data'] = extract_fuel_data(text, language)
+        result['specific_data'] = extract_fuel_data(text, detected_language)
     elif receipt_type == 'toll':
-        result['specific_data'] = extract_toll_data(text, language)
+        result['specific_data'] = extract_toll_data(text, detected_language)
 
     return result
 
