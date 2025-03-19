@@ -107,9 +107,19 @@ def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
         Tuple[str, Dict[str, Any]]: Extrahovaný text a strukturovaná data
     """
     try:
+        # Kontrola vstupu
+        if not isinstance(image, Image.Image):
+            logger.error("Vstupní obrázek není PIL Image")
+            return "", {}
+            
         # Převod na numpy array
         image_np = np.array(image)
         
+        # Kontrola, že převod proběhl úspěšně
+        if not isinstance(image_np, np.ndarray):
+            logger.error("Nepodařilo se převést obrázek na numpy array")
+            return "", {}
+            
         # Převod RGB na BGR pokud je potřeba
         if len(image_np.shape) == 3 and image_np.shape[2] == 3:
             image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
@@ -117,6 +127,10 @@ def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
         # Předzpracování obrázku
         processed_image = preprocess_image(image_np)
         
+        if processed_image is None:
+            logger.error("Předzpracování obrázku selhalo")
+            return "", {}
+            
         # Provedení OCR s výchozím jazykem
         extracted_text, structured_data = perform_ocr(processed_image, 'ces')
         
@@ -234,11 +248,11 @@ def process_scan_tab(tab: st.tabs) -> None:
                     st.session_state.preview_image = preview
                     
                     # Zobrazení náhledu
-                    st.image(preview, caption="Náhled účtenky", use_column_width=True)
+                    st.image(preview, caption="Náhled účtenky", use_container_width=True)
                 except Exception as e:
                     logger.error(f"Chyba při zobrazení náhledu: {str(e)}")
             elif st.session_state.preview_image is not None:
-                st.image(st.session_state.preview_image, caption="Náhled účtenky", use_column_width=True)
+                st.image(st.session_state.preview_image, caption="Náhled účtenky", use_container_width=True)
             
         if image:
             try:

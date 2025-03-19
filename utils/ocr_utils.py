@@ -51,12 +51,26 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
         Předzpracovaný obrázek (numpy array)
     """
     try:
+        # Kontrola typu vstupu
+        if not isinstance(image, np.ndarray):
+            logger.error("Vstupní obrázek není numpy array")
+            return image
+            
+        # Převod na uint8 pokud není
+        if image.dtype != np.uint8:
+            image = image.astype(np.uint8)
+            
         # Převod na stupně šedi pokud není
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
-            gray = image
-        
+            gray = image.copy()
+            
+        # Kontrola, že obrázek je ve stupních šedi
+        if len(gray.shape) != 2:
+            logger.error("Nepodařilo se převést obrázek na stupně šedi")
+            return image
+            
         # Aplikace bilaterálního filtru pro zachování hran při odstranění šumu
         filtered = cv2.bilateralFilter(gray, 11, 17, 17)
         
