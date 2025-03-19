@@ -1,3 +1,8 @@
+"""
+OCR utility for receipt processing
+Handles image preprocessing and OCR operations
+"""
+
 import cv2
 import numpy as np
 import pytesseract
@@ -7,56 +12,88 @@ import re
 import tempfile
 import requests
 import logging
+from typing import Tuple, Dict, List, Optional
+from functools import lru_cache
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def preprocess_image(image):
-    """
-    Preprocess the image to improve OCR results
-    Args:
-        image: Input image (numpy array)
-    Returns:
-        Preprocessed image (numpy array)
-    """
-    # Convert to grayscale if not already
-    if len(image.shape) == 3:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = image
-    
-    # Apply bilateral filter to preserve edges while removing noise
-    filtered = cv2.bilateralFilter(gray, 11, 17, 17)
-    
-    # Apply contrast enhancement using CLAHE
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(filtered)
-    
-    # Apply adaptive thresholding with optimized parameters
-    thresh = cv2.adaptiveThreshold(
-        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 9
-    )
-    
-    # Noise removal with morphological operations
-    kernel = np.ones((1, 1), np.uint8)
-    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-    
-    # Dilation to make text more prominent
-    kernel2 = np.ones((1, 1), np.uint8)
-    dilated = cv2.dilate(opening, kernel2, iterations=1)
-    
-    return dilated
+# OCR configuration
+OCR_CONFIG = {
+    'language': 'ces',
+    'psm': 6,
+    'oem': 1,
+    'confidence_threshold': 40
+}
 
-def perform_ocr(image, language='ces', ocr_provider='tesseract'):
+@lru_cache(maxsize=128)
+def compile_pattern(pattern: str) -> re.Pattern:
     """
-    Performs OCR on the provided image using Tesseract
+    Kompiluje a cachuje regulární výraz.
+    
     Args:
-        image: Input image (numpy array)
-        language: Language for OCR
-        ocr_provider: 'tesseract'
+        pattern: Vzorek regulárního výrazu
+        
     Returns:
-        Tuple[str, dict]: (extracted_text, structured_data)
+        Kompilovaný regulární výraz
+    """
+    return re.compile(pattern)
+
+def preprocess_image(image: np.ndarray) -> np.ndarray:
+    """
+    Předzpracuje obrázek pro lepší výsledky OCR.
+    
+    Args:
+        image: Vstupní obrázek (numpy array)
+        
+    Returns:
+        Předzpracovaný obrázek (numpy array)
+    """
+    try:
+        # Převod na stupně šedi pokud není
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image
+        
+        # Aplikace bilaterálního filtru pro zachování hran při odstranění šumu
+        filtered = cv2.bilateralFilter(gray, 11, 17, 17)
+        
+        # Vylepšení kontrastu pomocí CLAHE
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(filtered)
+        
+        # Adaptivní prahování s optimalizovanými parametry
+        thresh = cv2.adaptiveThreshold(
+            enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 9
+        )
+        
+        # Odstranění šumu pomocí morfologických operací
+        kernel = np.ones((1, 1), np.uint8)
+        opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+        
+        # Dilatace pro zvýraznění textu
+        kernel2 = np.ones((1, 1), np.uint8)
+        dilated = cv2.dilate(opening, kernel2, iterations=1)
+        
+        return dilated
+        
+    except Exception as e:
+        logger.error(f"Chyba při předzpracování obrázku: {str(e)}")
+        return image
+
+def perform_ocr(image: np.ndarray, language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Dict[str, Any]]:
+    """
+    Provede OCR na zadaném obrázku pomocí Tesseractu.
+    
+    Args:
+        image: Vstupní obrázek (numpy array)
+        language: Jazyk pro OCR
+        ocr_provider: OCR engine (pouze tesseract je podporován)
+        
+    Returns:
+        Tuple obsahující (extrahovaný_text, strukturovaná_data)
     """
     try:
         if image is None:
@@ -67,9 +104,9 @@ def perform_ocr(image, language='ces', ocr_provider='tesseract'):
             raise ValueError("Předzpracování obrázku selhalo")
             
         pil_image = Image.fromarray(processed_image)
-        custom_config = f'--oem 1 --psm 6 -l {language}'
+        custom_config = f'--oem {OCR_CONFIG["oem"]} --psm {OCR_CONFIG["psm"]} -l {language}'
         
-        # Get text from image with better error handling
+        # Získání textu z obrázku s lepším ošetřením chyb
         try:
             text = pytesseract.image_to_string(pil_image, config=custom_config)
             if not text.strip():
@@ -78,7 +115,7 @@ def perform_ocr(image, language='ces', ocr_provider='tesseract'):
             logger.error(f"Tesseract chyba: {str(te)}")
             return "", {}
             
-        # Create basic structured data
+        # Vytvoření základních strukturovaných dat
         structured_data = {
             'merchant': '',
             'date': None,
@@ -97,16 +134,18 @@ def perform_ocr(image, language='ces', ocr_provider='tesseract'):
         logger.error(f"OCR chyba: {str(e)}")
         return "", {}
 
-def extract_text_blocks(image, language='ces'):
+def extract_text_blocks(image: np.ndarray, language: str = 'ces') -> List[Dict[str, Any]]:
     """
-    Extract text blocks with positioning information
+    Extrahuje textové bloky s informacemi o pozicích.
+    
     Args:
-        image: Input image (numpy array)
-        language: Language to use for OCR
+        image: Vstupní obrázek (numpy array)
+        language: Jazyk pro OCR
+        
     Returns:
-        List of dictionaries with text and position information
+        Seznam slovníků s textem a informacemi o pozicích
     """
-    # Map language codes
+    # Mapování jazykových kódů
     lang_map = {
         'ces': 'ces',
         'fra': 'fra',
@@ -116,23 +155,23 @@ def extract_text_blocks(image, language='ces'):
         'de': 'deu'
     }
     
-    # Get the correct language code
+    # Získání správného jazykového kódu
     lang_code = lang_map.get(language, 'ces')
     
-    # Preprocess the image
-    processed_image = preprocess_image(image)
-    
     try:
-        # Convert NumPy array to PIL Image
+        # Předzpracování obrázku
+        processed_image = preprocess_image(image)
+        
+        # Převod NumPy array na PIL Image
         pil_image = Image.fromarray(processed_image)
         
-        # Extract text with positioning data
-        custom_config = f'--oem 1 --psm 6 -l {lang_code}'
+        # Extrakce textu s daty o pozicích
+        custom_config = f'--oem {OCR_CONFIG["oem"]} --psm {OCR_CONFIG["psm"]} -l {lang_code}'
         data = pytesseract.image_to_data(pil_image, config=custom_config, output_type=pytesseract.Output.DICT)
         
         blocks = []
         for i in range(len(data['text'])):
-            if int(data['conf'][i]) > 40 and data['text'][i].strip():
+            if int(data['conf'][i]) > OCR_CONFIG['confidence_threshold'] and data['text'][i].strip():
                 block = {
                     'text': data['text'][i].strip(),
                     'x': data['left'][i],
@@ -147,21 +186,21 @@ def extract_text_blocks(image, language='ces'):
         return blocks
         
     except Exception as e:
-        print(f"Block extraction error: {str(e)}")
+        logger.error(f"Chyba při extrakci textových bloků: {str(e)}")
         
-        # Fallback to file-based method if direct method fails
+        # Fallback na metodu založenou na souborech
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
             tmp_filename = tmp.name
-            cv2.imwrite(tmp_filename, processed_image)
-            
             try:
-                # Extract text with positioning data
-                custom_config = f'--oem 1 --psm 6 -l {lang_code}'
+                cv2.imwrite(tmp_filename, processed_image)
+                
+                # Extrakce textu s daty o pozicích
+                custom_config = f'--oem {OCR_CONFIG["oem"]} --psm {OCR_CONFIG["psm"]} -l {lang_code}'
                 data = pytesseract.image_to_data(Image.open(tmp_filename), config=custom_config, output_type=pytesseract.Output.DICT)
                 
                 blocks = []
                 for i in range(len(data['text'])):
-                    if int(data['conf'][i]) > 40 and data['text'][i].strip():
+                    if int(data['conf'][i]) > OCR_CONFIG['confidence_threshold'] and data['text'][i].strip():
                         block = {
                             'text': data['text'][i].strip(),
                             'x': data['left'][i],
@@ -178,3 +217,5 @@ def extract_text_blocks(image, language='ces'):
             finally:
                 if os.path.exists(tmp_filename):
                     os.unlink(tmp_filename)
+                    
+        return []
