@@ -197,13 +197,13 @@ def process_scan_tab(tab: st.tabs) -> None:
         tab: Streamlit tab element
     """
     with tab:
-        st.subheader(get_text('scan_subheader', 'cs'))
+        st.subheader("Skenování účtenky")
         
         # Výběr zdroje obrázku
         col1, col2 = st.columns([1, 3])
         with col1:
             image_source = st.radio(
-                get_text('image_source', 'cs'),
+                "Zdroj obrázku",
                 ['upload', 'camera'],
                 horizontal=True,
                 key='image_source_radio'
@@ -225,13 +225,13 @@ def process_scan_tab(tab: st.tabs) -> None:
                         st.session_state.camera_enabled = True
                         st.rerun()
                 else:
-                    uploaded_file = st.camera_input(get_text('camera_input', 'cs'))
+                    uploaded_file = st.camera_input("Pořídit snímek")
                     if st.button("Vypnout kameru"):
                         st.session_state.camera_enabled = False
                         st.rerun()
             else:
                 uploaded_file = st.file_uploader(
-                    get_text('file_uploader', 'cs'),
+                    "Nahrát obrázek",
                     type=['png', 'jpg', 'jpeg']
                 )
                 
@@ -268,7 +268,7 @@ def process_scan_tab(tab: st.tabs) -> None:
                     receipt_info = extract_receipt_info(extracted_text)
                     
                     # Zobrazení výsledků
-                    st.subheader(get_text('extracted_info', 'cs'))
+                    st.subheader("Extrahované informace")
                     
                     # Formulář pro úpravu dat
                     with st.form("receipt_form"):
@@ -276,50 +276,62 @@ def process_scan_tab(tab: st.tabs) -> None:
                         
                         with col1:
                             merchant = st.text_input(
-                                get_text('merchant', 'cs'),
+                                "Obchodník",
                                 value=receipt_info.get('merchant', '')
                             )
                             date = st.date_input(
-                                get_text('date', 'cs'),
+                                "Datum",
                                 value=receipt_info.get('date', datetime.now())
+                            )
+                            payment_method = st.selectbox(
+                                "Způsob platby",
+                                options=['Kartou', 'Hotovost'],
+                                index=0
                             )
                             
                         with col2:
                             total = st.number_input(
-                                get_text('total', 'cs'),
+                                "Celková částka",
                                 min_value=0.0,
                                 value=float(receipt_info.get('total', 0.0))
                             )
                             currency = st.selectbox(
-                                get_text('currency', 'cs'),
+                                "Měna",
                                 options=APP_CONFIG['supported_currencies'],
                                 index=APP_CONFIG['supported_currencies'].index(
                                     receipt_info.get('currency', APP_CONFIG['default_currency'])
                                 )
                             )
+                            purpose = st.selectbox(
+                                "Účel",
+                                options=['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní'],
+                                index=0
+                            )
                             
                         # Uložení účtenky
-                        if st.form_submit_button(get_text('save_receipt', 'cs')):
+                        if st.form_submit_button("Uložit účtenku"):
                             receipt_data = {
                                 'merchant': merchant,
                                 'date': date,
                                 'total': total,
                                 'currency': currency,
                                 'category': st.session_state.selected_category,
+                                'payment_method': payment_method,
+                                'purpose': purpose,
                                 'timestamp': datetime.now()
                             }
                             
                             if save_receipt(receipt_data):
-                                st.success(get_text('receipt_saved', 'cs'))
+                                st.success("Účtenka byla úspěšně uložena")
                                 # Vyčištění náhledu po uložení
                                 st.session_state.preview_image = None
                                 st.rerun()
                             else:
-                                st.error(get_text('save_error', 'cs'))
+                                st.error("Chyba při ukládání účtenky")
                                 
             except Exception as e:
                 logger.error(f"Chyba při zpracování obrázku: {str(e)}")
-                st.error(get_text('processing_error', 'cs'))
+                st.error("Chyba při zpracování obrázku")
 
 def process_history_tab(tab: st.tabs) -> None:
     """
@@ -329,10 +341,10 @@ def process_history_tab(tab: st.tabs) -> None:
         tab: Streamlit tab element
     """
     with tab:
-        st.subheader(get_text('history_subheader', 'cs'))
+        st.subheader("Historie účtenek")
         
         if not st.session_state.receipts:
-            st.info(get_text('no_receipts', 'cs'))
+            st.info("Zatím nejsou uloženy žádné účtenky")
             return
             
         # Filtrování podle kategorie
@@ -342,7 +354,7 @@ def process_history_tab(tab: st.tabs) -> None:
         ]
         
         if not filtered_receipts:
-            st.info(get_text('no_receipts_category', 'cs'))
+            st.info("V této kategorii nejsou žádné účtenky")
             return
             
         # Zobrazení účtenek
@@ -354,22 +366,24 @@ def process_history_tab(tab: st.tabs) -> None:
                 col1, col2, col3 = st.columns([2, 1, 1])
                 
                 with col1:
-                    st.write(f"**{get_text('merchant', 'cs')}:** {receipt.get('merchant', '')}")
-                    st.write(f"**{get_text('date', 'cs')}:** {receipt.get('date', '')}")
+                    st.write(f"**Obchodník:** {receipt.get('merchant', '')}")
+                    st.write(f"**Datum:** {receipt.get('date', '')}")
+                    st.write(f"**Způsob platby:** {receipt.get('payment_method', '')}")
+                    st.write(f"**Účel:** {receipt.get('purpose', '')}")
                     
                 with col2:
                     st.write(
-                        f"**{get_text('total', 'cs')}:** "
+                        f"**Celková částka:** "
                         f"{receipt.get('total', 0.0)} {receipt.get('currency', '')}"
                     )
                     
                 with col3:
-                    if st.button(get_text('delete', 'cs'), key=f"delete_{i}"):
+                    if st.button("Smazat", key=f"delete_{i}"):
                         if delete_receipt(i):
-                            st.success(get_text('receipt_deleted', 'cs'))
+                            st.success("Účtenka byla smazána")
                             st.rerun()
                         else:
-                            st.error(get_text('delete_error', 'cs'))
+                            st.error("Chyba při mazání účtenky")
 
 def process_export_tab(tab: st.tabs) -> None:
     """
@@ -379,10 +393,10 @@ def process_export_tab(tab: st.tabs) -> None:
         tab: Streamlit tab element
     """
     with tab:
-        st.subheader(get_text('export_subheader', 'cs'))
+        st.subheader("Export účtenek")
         
         if not st.session_state.receipts:
-            st.info(get_text('no_receipts', 'cs'))
+            st.info("Zatím nejsou uloženy žádné účtenky")
             return
             
         # Filtrování podle kategorie
@@ -392,35 +406,34 @@ def process_export_tab(tab: st.tabs) -> None:
         ]
         
         if not filtered_receipts:
-            st.info(get_text('no_receipts_category', 'cs'))
+            st.info("V této kategorii nejsou žádné účtenky")
             return
             
         # Export do Excelu
-        if st.button(get_text('export_excel', 'cs')):
+        if st.button("Exportovat do Excelu"):
             try:
                 column_mapping = {
                     'date': 'Datum',
                     'merchant': 'Obchodník',
                     'total': 'Celková částka',
                     'payment_method': 'Způsob platby',
-                    'receipt_number': 'Číslo účtenky',
                     'purpose': 'Účel',
                     'currency': 'Měna'
                 }
                 excel_file = export_to_excel(filtered_receipts, column_mapping)
                 if excel_file:
                     st.session_state.excel_file = excel_file
-                    st.success(get_text('export_success', 'cs'))
+                    st.success("Export byl úspěšně dokončen")
                 else:
-                    st.error(get_text('export_error', 'cs'))
+                    st.error("Chyba při exportu do Excelu")
             except Exception as e:
                 logger.error(f"Chyba při exportu do Excelu: {str(e)}")
-                st.error(get_text('export_error', 'cs'))
+                st.error("Chyba při exportu do Excelu")
                 
         # Stažení souboru
         if st.session_state.excel_file:
             st.download_button(
-                label=get_text('download_excel', 'cs'),
+                label="Stáhnout Excel soubor",
                 data=st.session_state.excel_file,
                 file_name=f"receipts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -434,18 +447,18 @@ def process_settings_tab(tab: st.tabs) -> None:
         tab: Streamlit tab element
     """
     with tab:
-        st.subheader(get_text('settings_subheader', 'cs'))
+        st.subheader("Nastavení")
         
         # Nastavení jazyka
         language = st.selectbox(
-            get_text('language', 'cs'),
+            "Jazyk",
             options=list(APP_CONFIG['supported_languages'].keys()),
             format_func=lambda x: APP_CONFIG['supported_languages'][x]
         )
         
         # Nastavení OCR
         ocr_provider = st.radio(
-            get_text('ocr_provider', 'cs'),
+            "OCR poskytovatel",
             ['tesseract', 'google'],
             horizontal=True
         )

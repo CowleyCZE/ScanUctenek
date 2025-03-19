@@ -27,7 +27,7 @@ def validate_receipt(receipt: Dict[str, Any]) -> bool:
     Returns:
         bool: True pokud jsou data validní, False jinak
     """
-    required_fields = ['merchant', 'date', 'total', 'currency', 'payment_method']
+    required_fields = ['merchant', 'date', 'total', 'currency', 'payment_method', 'purpose']
     
     try:
         # Kontrola povinných polí
@@ -59,6 +59,10 @@ def validate_receipt(receipt: Dict[str, Any]) -> bool:
             
         if receipt['payment_method'] not in ['Kartou', 'Hotovost']:
             logger.error("Neplatný způsob platby")
+            return False
+
+        if receipt['purpose'] not in ['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní']:
+            logger.error("Neplatný účel")
             return False
             
         return True
