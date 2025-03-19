@@ -12,7 +12,7 @@ import re
 import tempfile
 import requests
 import logging
-from typing import Tuple, Dict, List, Optional, Any
+from typing import Tuple, Dict, List, Optional, Any, Union
 from functools import lru_cache
 
 # Configure logger
@@ -40,17 +40,21 @@ def compile_pattern(pattern: str) -> re.Pattern:
     """
     return re.compile(pattern)
 
-def preprocess_image(image: np.ndarray) -> np.ndarray:
+def preprocess_image(image: Union[np.ndarray, Image.Image]) -> np.ndarray:
     """
     Předzpracuje obrázek pro lepší výsledky OCR.
     
     Args:
-        image: Vstupní obrázek (numpy array)
+        image: Vstupní obrázek (numpy array nebo PIL Image)
         
     Returns:
         Předzpracovaný obrázek (numpy array)
     """
     try:
+        # Převod na numpy array pokud je potřeba
+        if isinstance(image, Image.Image):
+            image = np.array(image)
+            
         # Kontrola typu vstupu
         if not isinstance(image, np.ndarray):
             logger.error("Vstupní obrázek není numpy array")
@@ -62,17 +66,20 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
             
         # Převod na stupně šedi pokud není
         if len(image.shape) == 3:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            if image.shape[2] == 4:  # RGBA
+                image = cv2.cvtColor(image, cv2.COLOR_RGBA2GRAY)
+            elif image.shape[2] == 3:  # RGB nebo BGR
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
-            gray = image.copy()
+            image = image.copy()
             
         # Kontrola, že obrázek je ve stupních šedi
-        if len(gray.shape) != 2:
+        if len(image.shape) != 2:
             logger.error("Nepodařilo se převést obrázek na stupně šedi")
             return image
             
         # Aplikace bilaterálního filtru pro zachování hran při odstranění šumu
-        filtered = cv2.bilateralFilter(gray, 11, 17, 17)
+        filtered = cv2.bilateralFilter(image, 11, 17, 17)
         
         # Vylepšení kontrastu pomocí CLAHE
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -97,12 +104,12 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
         logger.error(f"Chyba při předzpracování obrázku: {str(e)}")
         return image
 
-def perform_ocr(image: np.ndarray, language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Dict[str, Any]]:
+def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', ocr_provider: str = 'tesseract') -> Tuple[str, Dict[str, Any]]:
     """
     Provede OCR na zadaném obrázku pomocí Tesseractu.
     
     Args:
-        image: Vstupní obrázek (numpy array)
+        image: Vstupní obrázek (numpy array nebo PIL Image)
         language: Jazyk pro OCR
         ocr_provider: OCR engine (pouze tesseract je podporován)
         
@@ -113,10 +120,22 @@ def perform_ocr(image: np.ndarray, language: str = 'ces', ocr_provider: str = 't
         if image is None:
             raise ValueError("Vstupní obrázek je prázdný")
             
+        # Převod na PIL Image pokud je potřeba
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+        elif not isinstance(image, Image.Image):
+            raise ValueError("Nepodporovaný formát obrázku")
+            
+        # Kontrola, zda je obrázek validní
+        if image.size[0] == 0 or image.size[1] == 0:
+            raise ValueError("Neplatný obrázek - nulová velikost")
+            
+        # Předzpracování obrázku
         processed_image = preprocess_image(image)
         if processed_image is None:
             raise ValueError("Předzpracování obrázku selhalo")
             
+        # Převod zpět na PIL Image pro OCR
         pil_image = Image.fromarray(processed_image)
         custom_config = f'--oem {OCR_CONFIG["oem"]} --psm {OCR_CONFIG["psm"]} -l {language}'
         
@@ -125,25 +144,41 @@ def perform_ocr(image: np.ndarray, language: str = 'ces', ocr_provider: str = 't
             text = pytesseract.image_to_string(pil_image, config=custom_config)
             if not text.strip():
                 logger.warning("OCR nedetekoval žádný text")
+                
+            # Získání strukturovaných dat
+            data = pytesseract.image_to_data(
+                pil_image,
+                config=custom_config,
+                output_type=pytesseract.Output.DICT
+            )
+            
+            # Filtrování dat s nízkou důvěryhodností
+            confidence_threshold = OCR_CONFIG['confidence_threshold']
+            filtered_data = {
+                key: [val for i, val in enumerate(data[key]) 
+                      if float(data['conf'][i]) > confidence_threshold]
+                for key in data.keys()
+            }
+            
+            # Vytvoření strukturovaných dat
+            structured_data = {
+                'merchant': '',
+                'date': None,
+                'total': 0.0,
+                'items': [],
+                'metadata': {
+                    'language': language,
+                    'confidence': np.mean([float(conf) for conf in data['conf'] if float(conf) > 0]),
+                    'processing_time': None
+                }
+            }
+            
+            return text.strip(), structured_data
+            
         except pytesseract.TesseractError as te:
             logger.error(f"Tesseract chyba: {str(te)}")
             return "", {}
             
-        # Vytvoření základních strukturovaných dat
-        structured_data = {
-            'merchant': '',
-            'date': None,
-            'total': 0.0,
-            'items': [],
-            'metadata': {
-                'language': language,
-                'confidence': None,
-                'processing_time': None
-            }
-        }
-        
-        return text, structured_data
-        
     except Exception as e:
         logger.error(f"OCR chyba: {str(e)}")
         return "", {}

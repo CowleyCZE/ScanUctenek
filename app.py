@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 import os
 import requests
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Union
 from utils.ocr_utils import perform_ocr, preprocess_image
 from utils.receipt_parser import extract_receipt_info, detect_language
 from utils.excel_export import export_to_excel
@@ -96,30 +96,34 @@ def get_svg_content() -> str:
         logger.error(f"Chyba při načítání SVG: {str(e)}")
         return '<div style="color:#2196F3;font-weight:bold;font-size:24px;margin:10px;">SkenÚčtenek</div>'
 
-def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
+def process_receipt_image(image: Union[np.ndarray, Image.Image, bytes]) -> Tuple[str, Dict[str, Any]]:
     """
     Zpracuje obrázek účtenky pomocí OCR.
     
     Args:
-        image: Obrázek účtenky
+        image: Obrázek účtenky (PIL Image, numpy array nebo bytes)
         
     Returns:
         Tuple[str, Dict[str, Any]]: Extrahovaný text a strukturovaná data
     """
     try:
-        # Kontrola vstupu
-        if not isinstance(image, Image.Image):
-            logger.error("Vstupní obrázek není PIL Image")
+        # Převod na PIL Image pokud je potřeba
+        if isinstance(image, bytes):
+            image = Image.open(io.BytesIO(image))
+        elif isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+        elif not isinstance(image, Image.Image):
+            logger.error("Nepodporovaný formát obrázku")
             return "", {}
             
-        # Převod na numpy array
+        # Kontrola, zda je obrázek validní
+        if image.size[0] == 0 or image.size[1] == 0:
+            logger.error("Neplatný obrázek - nulová velikost")
+            return "", {}
+            
+        # Převod na numpy array pro předzpracování
         image_np = np.array(image)
         
-        # Kontrola, že převod proběhl úspěšně
-        if not isinstance(image_np, np.ndarray):
-            logger.error("Nepodařilo se převést obrázek na numpy array")
-            return "", {}
-            
         # Převod RGB na BGR pokud je potřeba
         if len(image_np.shape) == 3 and image_np.shape[2] == 3:
             image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
@@ -256,10 +260,6 @@ def process_scan_tab(tab: st.tabs) -> None:
             
         if image:
             try:
-                # Převod na PIL Image
-                if isinstance(image, bytes):
-                    image = Image.open(io.BytesIO(image))
-                    
                 # Zpracování obrázku
                 extracted_text, structured_data = process_receipt_image(image)
                 
