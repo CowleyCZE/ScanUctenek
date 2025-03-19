@@ -22,9 +22,10 @@ logger = logging.getLogger(__name__)
 # OCR configuration
 OCR_CONFIG = {
     'language': 'ces',
-    'psm': 6,
-    'oem': 1,
-    'confidence_threshold': 40
+    'psm': 6,  # Assume uniform block of text
+    'oem': 1,  # LSTM OCR Engine
+    'confidence_threshold': 40,
+    'whitelist': '0123456789,.€$£¥' # Povolené znaky pro čísla a měny
 }
 
 @lru_cache(maxsize=128)
@@ -137,7 +138,14 @@ def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', oc
             
         # Převod zpět na PIL Image pro OCR
         pil_image = Image.fromarray(processed_image)
-        custom_config = f'--oem {OCR_CONFIG["oem"]} --psm {OCR_CONFIG["psm"]} -l {language}'
+        
+        # Konfigurace pro lepší rozpoznávání čísel
+        custom_config = (
+            f'--oem {OCR_CONFIG["oem"]} '
+            f'--psm {OCR_CONFIG["psm"]} '
+            f'-l {language} '
+            f'-c tessedit_char_whitelist={OCR_CONFIG["whitelist"]}'
+        )
         
         # Získání textu z obrázku s lepším ošetřením chyb
         try:
@@ -172,6 +180,14 @@ def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', oc
                     'processing_time': None
                 }
             }
+            
+            # Pokus o nalezení částky v textu
+            amount_matches = re.findall(r'(?:TOTAAL|TOTAL|SUMA|CELKEM)[\s:]*[€]?\s*(\d+[.,]\d{2})', text, re.IGNORECASE)
+            if amount_matches:
+                try:
+                    structured_data['total'] = float(amount_matches[-1].replace(',', '.'))
+                except ValueError:
+                    pass
             
             return text.strip(), structured_data
             

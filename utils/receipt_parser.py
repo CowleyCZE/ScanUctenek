@@ -22,9 +22,9 @@ PATTERNS = {
         'de': r'(\d{1,2})[\.,](\d{1,2})[\.,](\d{2,4})'
     },
     'amount': {
-        'cs': r'(\d+[.,]\d{2})\s*(?:Kč|CZK)',
-        'fr': r'(\d+[.,]\d{2})\s*(?:€|EUR)',
-        'de': r'(\d+[.,]\d{2})\s*(?:€|EUR)'
+        'cs': r'(?:CELKEM|TOTAL|TOTAAL|SUMA)[\s:]*[€]?\s*(\d+[.,]\d{2})',
+        'fr': r'(?:TOTAL|TOTAAL|SOMME)[\s:]*[€]?\s*(\d+[.,]\d{2})',
+        'de': r'(?:GESAMT|TOTAL|SUMME)[\s:]*[€]?\s*(\d+[.,]\d{2})'
     },
     'receipt_number': {
         'cs': r'(?:č\.|číslo|čís\.)\s*:?\s*(\d+)',
@@ -355,23 +355,49 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
         Celková částka nebo None pokud není nalezena
     """
     try:
-        # Získání vzorů pro daný jazyk
-        patterns = PATTERNS['amount'].get(language, PATTERNS['amount']['cs'])
+        # Nejprve zkusíme najít částku podle standardních vzorů
+        amount_patterns = [
+            # TOTAAL € X.XX nebo TOTAAL X.XX €
+            r'TOTAAL\s*€?\s*(\d+[.,]\d{2})(?:\s*€)?',
+            # Částka s měnou před nebo za
+            r'(?:€\s*)?(\d+[.,]\d{2})(?:\s*€)?',
+            # Řádek začínající "TOTAL" nebo podobně
+            r'(?:TOTAL|TOTAAL|SUMA|CELKEM)[\s:]*[€]?\s*(\d+[.,]\d{2})',
+            # Částka na samostatném řádku
+            r'^[\s]*(\d+[.,]\d{2})[\s]*$'
+        ]
         
-        # Pokus o nalezení částky pomocí vzorů
-        amount_matches = re.search(patterns, text, re.IGNORECASE)
-        if amount_matches:
-            amount_str = amount_matches.group(1)
-            try:
-                # Konverze na float s ošetřením desetinné čárky
-                amount = float(amount_str.replace(',', '.'))
-                if amount > 0:
-                    return amount
-                else:
-                    logger.warning(f"Nalezena záporná nebo nulová částka: {amount}")
-            except ValueError as e:
-                logger.error(f"Chyba při konverzi částky: {str(e)}")
-                
+        # Procházíme řádky textu
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            # Zkontrolujeme každý vzor
+            for pattern in amount_patterns:
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    amount_str = match.group(1)
+                    try:
+                        # Převedeme na float, nahradíme desetinnou čárku tečkou
+                        amount = float(amount_str.replace(',', '.'))
+                        if amount > 0:
+                            return amount
+                    except ValueError:
+                        continue
+        
+        # Pokud jsme nenašli částku pomocí vzorů, zkusíme najít řádek s "TOTAAL" nebo podobně
+        for line in lines:
+            if any(keyword in line.upper() for keyword in ['TOTAAL', 'TOTAL', 'SUMA', 'CELKEM']):
+                # Extrahujeme všechna čísla z řádku
+                numbers = re.findall(r'(\d+[.,]\d{2})', line)
+                if numbers:
+                    try:
+                        # Bereme poslední číslo na řádku (obvykle celková částka)
+                        amount = float(numbers[-1].replace(',', '.'))
+                        if amount > 0:
+                            return amount
+                    except ValueError:
+                        continue
+                    
         return None
         
     except Exception as e:
