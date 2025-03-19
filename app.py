@@ -96,27 +96,23 @@ def get_svg_content() -> str:
         logger.error(f"Chyba při načítání SVG: {str(e)}")
         return '<div style="color:#2196F3;font-weight:bold;font-size:24px;margin:10px;">SkenÚčtenek</div>'
 
-def process_receipt_image(image: Union[np.ndarray, Image.Image, bytes]) -> Tuple[str, Dict[str, Any]]:
+def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
     """
     Zpracuje obrázek účtenky pomocí OCR.
     
     Args:
-        image: Obrázek účtenky (PIL Image, numpy array nebo bytes)
+        image: Obrázek účtenky (PIL Image)
         
     Returns:
         Tuple[str, Dict[str, Any]]: Extrahovaný text a strukturovaná data
     """
     try:
-        # Převod na PIL Image pokud je potřeba
-        if isinstance(image, bytes):
-            image = Image.open(io.BytesIO(image))
-        elif isinstance(image, np.ndarray):
-            image = Image.fromarray(image)
-        elif not isinstance(image, Image.Image):
-            logger.error("Nepodporovaný formát obrázku")
+        # Kontrola, zda je obrázek validní PIL Image
+        if not isinstance(image, Image.Image):
+            logger.error("Vstupní obrázek není PIL Image")
             return "", {}
             
-        # Kontrola, zda je obrázek validní
+        # Kontrola, zda má obrázek platné rozměry
         if image.size[0] == 0 or image.size[1] == 0:
             logger.error("Neplatný obrázek - nulová velikost")
             return "", {}
@@ -222,44 +218,48 @@ def process_scan_tab(tab: st.tabs) -> None:
         col1, col2 = st.columns([2, 2])
         
         with col1:
-            image = None
+            uploaded_file = None
             if st.session_state.image_source == 'camera':
                 if not st.session_state.camera_enabled:
                     if st.button("Zapnout kameru"):
                         st.session_state.camera_enabled = True
                         st.rerun()
                 else:
-                    image = st.camera_input(get_text('camera_input', 'cs'))
+                    uploaded_file = st.camera_input(get_text('camera_input', 'cs'))
                     if st.button("Vypnout kameru"):
                         st.session_state.camera_enabled = False
                         st.rerun()
             else:
-                image = st.file_uploader(
+                uploaded_file = st.file_uploader(
                     get_text('file_uploader', 'cs'),
                     type=['png', 'jpg', 'jpeg']
                 )
                 
         with col2:
             # Zobrazení náhledu
-            if image:
+            if uploaded_file is not None:
                 try:
-                    # Převod na PIL Image a uložení do session state
-                    if isinstance(image, bytes):
-                        preview = Image.open(io.BytesIO(image))
-                    else:
-                        preview = Image.open(image)
-                    
+                    # Načtení obrázku pro náhled
+                    preview = Image.open(uploaded_file)
                     st.session_state.preview_image = preview
                     
                     # Zobrazení náhledu
                     st.image(preview, caption="Náhled účtenky", use_container_width=True)
+                    
+                    # Reset pozice souboru pro další čtení
+                    uploaded_file.seek(0)
+                    
                 except Exception as e:
                     logger.error(f"Chyba při zobrazení náhledu: {str(e)}")
             elif st.session_state.preview_image is not None:
                 st.image(st.session_state.preview_image, caption="Náhled účtenky", use_container_width=True)
             
-        if image:
+        if uploaded_file is not None:
             try:
+                # Načtení obrázku pro zpracování
+                image_bytes = uploaded_file.read()
+                image = Image.open(io.BytesIO(image_bytes))
+                
                 # Zpracování obrázku
                 extracted_text, structured_data = process_receipt_image(image)
                 
