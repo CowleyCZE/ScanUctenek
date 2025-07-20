@@ -238,30 +238,30 @@ def process_scan_tab(tab: st.tabs) -> None:
         with col2:
             # Zobrazení náhledu
             if uploaded_file is not None:
+                # Načtení obrázku pouze jednou
+                image_bytes = uploaded_file.read()
+                st.session_state.image_bytes = image_bytes
+
                 try:
-                    # Načtení obrázku pro náhled
-                    preview = Image.open(uploaded_file)
+                    # Vytvoření náhledu z načtených bajtů
+                    preview = Image.open(io.BytesIO(image_bytes))
                     st.session_state.preview_image = preview
                     
-                    # Zobrazení náhledu
                     st.image(preview, caption="Náhled účtenky", use_container_width=True)
-                    
-                    # Reset pozice souboru pro další čtení
-                    uploaded_file.seek(0)
                     
                 except Exception as e:
                     logger.error(f"Chyba při zobrazení náhledu: {str(e)}")
             elif st.session_state.preview_image is not None:
                 st.image(st.session_state.preview_image, caption="Náhled účtenky", use_container_width=True)
-            
-        if uploaded_file is not None:
+
+        # Zpracování obrázku, pokud je k dispozici
+        if 'image_bytes' in st.session_state and st.session_state.image_bytes:
             try:
-                # Načtení obrázku pro zpracování
-                image_bytes = uploaded_file.read()
-                image = Image.open(io.BytesIO(image_bytes))
+                image = Image.open(io.BytesIO(st.session_state.image_bytes))
                 
                 # Zpracování obrázku
-                extracted_text, structured_data = process_receipt_image(image)
+                with st.spinner('Zpracovávám obrázek...'):
+                    extracted_text, structured_data = process_receipt_image(image)
                 
                 if extracted_text:
                     # Extrakce informací z textu
@@ -323,15 +323,18 @@ def process_scan_tab(tab: st.tabs) -> None:
                             
                             if save_receipt(receipt_data):
                                 st.success("Účtenka byla úspěšně uložena")
-                                # Vyčištění náhledu po uložení
+                                # Vyčištění náhledu a bajtů obrázku po uložení
                                 st.session_state.preview_image = None
+                                st.session_state.image_bytes = None
                                 st.rerun()
                             else:
                                 st.error("Chyba při ukládání účtenky")
+                else:
+                    st.warning("Nepodařilo se extrahovat žádný text. Zkuste prosím jiný obrázek.")
                                 
             except Exception as e:
                 logger.error(f"Chyba při zpracování obrázku: {str(e)}")
-                st.error("Chyba při zpracování obrázku")
+                st.error("Došlo k chybě při zpracování obrázku. Zkuste to prosím znovu.")
 
 def process_history_tab(tab: st.tabs) -> None:
     """

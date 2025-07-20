@@ -242,28 +242,7 @@ def extract_merchant(text: str, language: str) -> str:
         Název obchodníka
     """
     try:
-        merchant_words = get_words('merchant', language)
         lines = text.strip().split('\n')
-        
-        # Pokus o nalezení obchodníka pomocí klíčových slov
-        merchant_found = False
-        for i, line in enumerate(lines):
-            if i >= 10:  # Kontrola pouze prvních 10 řádků
-                break
-            
-            # Kontrola, zda je v řádku nějaké klíčové slovo
-            if any(word.lower() in line.lower() for word in merchant_words):
-                # Extrakce textu po klíčovém slově
-                for word in merchant_words:
-                    if word.lower() in line.lower():
-                        merchant_text = line[line.lower().find(word.lower()) + len(word):].strip()
-                        if merchant_text and len(merchant_text) > 3:
-                            return merchant_text.strip('.: ')
-                        merchant_found = True
-                        break
-            
-            if merchant_found:
-                break
         
         # Známí obchodníci s více variacemi
         known_merchants = {
@@ -285,14 +264,13 @@ def extract_merchant(text: str, language: str) -> str:
             if match:
                 return match.group(0).strip()
 
-        # Pokud stále není obchodník nalezen, použij první řádek
-        total_terms = ['celkem', 'total', 'suma', 'součet', 'gesamt', 'summe', 'montant', 'somme']
-        valid_lines = [line for line in lines[:5] if len(line.strip()) > 3
-                      and not re.match(r'^\d+$', line.strip())
-                      and not any(term in line.strip().lower() for term in total_terms)]
-        
-        if valid_lines:
-            return valid_lines[0].strip()
+        # Generický přístup: hledání prvního řádku, který není adresa, datum nebo čas
+        for line in lines[:5]:  # Omezení na prvních 5 řádků
+            line = line.strip()
+            if len(line) > 3 and not re.search(r'\d{2}[/\.]\d{2}[/\.]\d{4}', line):
+                # Vyloučení řádků, které vypadají jako adresa nebo jiné nepodstatné informace
+                if not any(keyword in line.lower() for keyword in ['ulice', 'street', 'tel', 'www', 'email']):
+                    return line
         
         return ''
         
@@ -312,31 +290,36 @@ def extract_date(text: str, language: str) -> Optional[datetime]:
         Datum nebo None pokud není nalezeno
     """
     try:
-        # Získání vzorů pro daný jazyk
-        patterns = PATTERNS['date'].get(language, PATTERNS['date']['cs'])
+        # Rozšířené vzory pro různé formáty data
+        date_patterns = [
+            r'(\d{1,2})[\.,/](\d{1,2})[\.,/](\d{2,4})',  # dd.mm.yyyy, dd/mm/yy
+            r'(\d{4})-(\d{2})-(\d{2})'  # yyyy-mm-dd
+        ]
         
-        # Pokus o nalezení data pomocí vzorů
-        date_matches = re.search(patterns, text, re.IGNORECASE)
-        if date_matches:
-            day, month, year = date_matches.groups()
-            
-            # Zpracování dvouciferného roku
-            if len(year) == 2:
-                year = '20' + year
+        for pattern in date_patterns:
+            date_matches = re.search(pattern, text, re.IGNORECASE)
+            if date_matches:
+                parts = date_matches.groups()
                 
-            try:
-                # Validace hodnot data
-                day_val = int(day)
-                month_val = int(month)
-                year_val = int(year)
-                
-                if 1 <= day_val <= 31 and 1 <= month_val <= 12 and 2000 <= year_val <= 2030:
-                    return datetime(year_val, month_val, day_val)
+                # Sjednocení formátu na (den, měsíc, rok)
+                if pattern == r'(\d{4})-(\d{2})-(\d{2})':
+                    year, month, day = parts
                 else:
-                    logger.warning(f"Neplatné hodnoty data: {day_val}.{month_val}.{year_val}")
-            except ValueError as e:
-                logger.error(f"Chyba při konverzi data: {str(e)}")
-                
+                    day, month, year = parts
+
+                # Zpracování dvouciferného roku
+                if len(year) == 2:
+                    year = '20' + year
+
+                try:
+                    # Validace hodnot data
+                    day_val, month_val, year_val = int(day), int(month), int(year)
+
+                    if 1 <= day_val <= 31 and 1 <= month_val <= 12 and 2000 <= year_val <= 2030:
+                        return datetime(year_val, month_val, day_val)
+                except ValueError:
+                    continue  # Pokračujeme k dalšímu vzoru
+
         return None
         
     except Exception as e:
@@ -355,51 +338,40 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
         Celková částka nebo None pokud není nalezena
     """
     try:
-        # Nejprve zkusíme najít částku podle standardních vzorů
-        amount_patterns = [
-            # TOTAAL € X.XX nebo TOTAAL X.XX €
-            r'TOTAAL\s*€?\s*(\d+[.,]\d{2})(?:\s*€)?',
-            # Částka s měnou před nebo za
-            r'(?:€\s*)?(\d+[.,]\d{2})(?:\s*€)?',
-            # Řádek začínající "TOTAL" nebo podobně
-            r'(?:TOTAL|TOTAAL|SUMA|CELKEM)[\s:]*[€]?\s*(\d+[.,]\d{2})',
-            # Částka na samostatném řádku
-            r'^[\s]*(\d+[.,]\d{2})[\s]*$'
-        ]
+        # Vylepšené regulární výrazy pro hledání klíčových slov a částek
+        total_keywords = get_words('total', language)
+        amount_pattern = r'(\d+[.,]\d{2})'
         
-        # Procházíme řádky textu
         lines = text.split('\n')
+        potential_amounts = []
+
+        # Hledání řádků s klíčovými slovy a extrakce čísel
         for line in lines:
-            line = line.strip()
-            # Zkontrolujeme každý vzor
-            for pattern in amount_patterns:
-                match = re.search(pattern, line, re.IGNORECASE)
-                if match:
-                    amount_str = match.group(1)
-                    try:
-                        # Převedeme na float, nahradíme desetinnou čárku tečkou
-                        amount = float(amount_str.replace(',', '.'))
-                        if amount > 0:
-                            return amount
-                    except ValueError:
-                        continue
-        
-        # Pokud jsme nenašli částku pomocí vzorů, zkusíme najít řádek s "TOTAAL" nebo podobně
-        for line in lines:
-            if any(keyword in line.upper() for keyword in ['TOTAAL', 'TOTAL', 'SUMA', 'CELKEM']):
-                # Extrahujeme všechna čísla z řádku
-                numbers = re.findall(r'(\d+[.,]\d{2})', line)
+            # Převod na malá písmena pro porovnání bez rozlišení velikosti
+            line_lower = line.lower()
+
+            # Kontrola, zda řádek obsahuje klíčové slovo
+            if any(keyword.lower() in line_lower for keyword in total_keywords):
+                # Extrakce všech čísel z řádku
+                numbers = re.findall(amount_pattern, line)
                 if numbers:
-                    try:
-                        # Bereme poslední číslo na řádku (obvykle celková částka)
-                        amount = float(numbers[-1].replace(',', '.'))
-                        if amount > 0:
-                            return amount
-                    except ValueError:
-                        continue
-                    
+                    # Přidání poslední nalezené částky (obvykle celková)
+                    potential_amounts.append(float(numbers[-1].replace(',', '.')))
+
+        # Pokud byly nalezeny potenciální částky, vrátíme nejvyšší
+        if potential_amounts:
+            return max(potential_amounts)
+
+        # Fallback: pokud nebyla nalezena klíčová slova, hledáme největší částku v celém textu
+        all_numbers = re.findall(amount_pattern, text)
+        if all_numbers:
+            # Převedeme všechny nalezené řetězce na čísla
+            all_amounts = [float(num.replace(',', '.')) for num in all_numbers]
+            # Vrátíme nejvyšší hodnotu, která je pravděpodobně celkovou částkou
+            return max(all_amounts)
+
         return None
-        
+
     except Exception as e:
         logger.error(f"Chyba při extrakci částky: {str(e)}")
         return None
@@ -447,14 +419,13 @@ def extract_receipt_number(text: str, language: str) -> Optional[str]:
         Číslo účtenky nebo None pokud není nalezeno
     """
     try:
-        # Získání vzorů pro daný jazyk
-        patterns = PATTERNS['receipt_number'].get(language, PATTERNS['receipt_number']['cs'])
-        
-        # Pokus o nalezení čísla účtenky pomocí vzorů
-        number_matches = re.search(patterns, text, re.IGNORECASE)
-        if number_matches:
-            return number_matches.group(1)
-            
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if "číslo účtenky" in line.lower():
+                # Extract the text after the colon
+                parts = line.split(':')
+                if len(parts) > 1:
+                    return parts[1].strip()
         return None
         
     except Exception as e:

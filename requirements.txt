@@ -1,6 +1,6 @@
 # Core application
 streamlit==1.43.2
-pandas==2.1.0
+pandas==2.2.0
 
 # Image processing
 opencv-python-headless==4.11.0.86
