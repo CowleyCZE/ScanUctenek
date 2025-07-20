@@ -13,67 +13,30 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Default wordlists for different languages and data fields
-DEFAULT_WORDLISTS: Dict[str, Dict[str, List[str]]] = {
-    'date': {
-        'cs': ['datum', 'dne', 'vystaveno', 'dat.', 'ze dne', 'dat'],
-        'fr': ['date', 'émis le', 'date d\'émission', 'du', 'le', 'date de transaction'],
-        'de': ['datum', 'ausgestellt am', 'tag', 'vom', 'dat.', 'dat']
-    },
-    'total': {
-        'cs': ['celkem', 'celková částka', 'součet', 'k úhradě', 'zaplaceno', 'uhrazeno', 'suma', 'cena celkem'],
-        'fr': ['total', 'montant', 'total à payer', 'à payer', 'net à payer', 'total ttc', 'somme', 'prix total', 
-               'montant reel', 'tarif t.t.c.', 'montant total', 'total eur', 'total €'],
-        'de': ['gesamt', 'summe', 'gesamtbetrag', 'zu zahlen', 'zahlbetrag', 'endsumme', 'gesamtsumme', 'total']
-    },
-    'currency': {
-        'cs': ['kč', 'czk', 'korun', 'koruny', 'korun českých', 'koruny české', 'k', 'eur', '€'],
-        'fr': ['€', 'eur', 'euro', 'euros', 'e'],
-        'de': ['€', 'eur', 'euro']
-    },
-    'payment_method': {
-        'cs': ['způsob platby', 'platba', 'placeno', 'hotovost', 'karta', 'platební karta', 'kartou', 'bankovní převod',
-               'v hotovosti', 'hotově'],
-        'fr': ['méthode de paiement', 'paiement', 'réglé par', 'payé par', 'espèces', 'carte', 'cb', 'carte bancaire',
-               'virement', 'chèque', 'sans contact', 'contactless', 'mastercard', 'visa'],
-        'de': ['zahlungsart', 'zahlung', 'bezahlt mit', 'bargeld', 'bar', 'karte', 'ec-karte', 'kreditkarte',
-               'kartenzahlung', 'überweisung']
-    },
-    'merchant': {
-        'cs': ['obchodník', 'prodejce', 'prodejna', 'firma', 'dodavatel', 'název', 'společnost'],
-        'fr': ['commerçant', 'vendeur', 'magasin', 'entreprise', 'fournisseur', 'nom', 'société', 'siret'],
-        'de': ['händler', 'verkäufer', 'geschäft', 'firma', 'lieferant', 'name', 'unternehmen', 'geschäftsname']
-    },
-    'purpose': {
-        'cs': ['účel', 'zboží', 'produkt', 'služba', 'popis', 'položka', 'název zboží', 'název položky'],
-        'fr': ['objet', 'marchandise', 'produit', 'service', 'description', 'article', 'désignation'],
-        'de': ['zweck', 'ware', 'produkt', 'dienstleistung', 'beschreibung', 'artikel', 'bezeichnung']
-    },
-    'fuel': {
-        'cs': ['pohonné hmoty', 'phm', 'palivo', 'natural', 'benzin', 'benzín', 'nafta', 'diesel', 'natankováno',
-               'čerpací stanice', 'čerpací st.', 'tankování', 'tankovat', 'shell', 'mol', 'omv', 'benzina', 'orlen', 'lpg',
-               'litr', 'l', 'cena/l', 'kč/l', 'množství'],
-        'fr': ['carburant', 'essence', 'diesel', 'gazole', 'gazole+', 'station-service', 'station service', 'plein', 
-               'super', 'sans plomb', 'avia', 'total', 'totalenergies', 'gulf', 'litre', 'litres', 'l', 'prix unit', 
-               'quantité', 'volume', 'pompe', 'naturel', 'e5', 'e10', 'sp95', 'sp98'],
-        'de': ['kraftstoff', 'benzin', 'diesel', 'tanken', 'tankstelle', 'zapfsäule', 'super', 'e10', 'autogas',
-               'liter', 'l', 'preis/l', 'menge']
-    },
-    'toll': {
-        'cs': ['mýtné', 'mýto', 'dálniční známka', 'dálniční poplatek', 'poplatek za dálnici', 'dálnice', 'poplatek',
-               'emyto', 'e-myto', 'známka', 'elektronické mýto', 'km'],
-        'fr': ['péage', 'autoroute', 'vignette', 'taxe routière', 'frais d\'autoroute', 'sanef', 'cofiroute', 
-               'vinci', 'autoroutes', 'echangeur', 'barrier', 'km parcourus', 'trajet', 'sortie', 'entrée',
-               'classe tarif', 'ticket a conserver', 'recu a conserver'],
-        'de': ['maut', 'autobahngebühr', 'vignette', 'straßengebühr', 'autobahnmaut', 'e-vignette', 'strecke', 'km']
-    },
-    'accommodation': {
-        'cs': ['ubytování', 'hotel', 'penzion', 'motel', 'nocleh', 'apartmán', 'pokoj', 'aparthotel', 'apartmány',
-               'hostel', 'lůžko', 'nocování', 'noclehárna', 'bydlení'],
-        'fr': ['hébergement', 'hôtel', 'pension', 'motel', 'chambre', 'appartement', 'gîte', 'auberge', 'logement'],
-        'de': ['unterkunft', 'hotel', 'pension', 'motel', 'zimmer', 'appartement', 'ferienwohnung', 'gasthaus', 'übernachtung']
-    }
-}
+# Cesty k souborům se slovníky
+DEFAULT_WORDLIST_PATH = Path(__file__).parent.parent / "data" / "user_wordlists.json"
+USER_CATEGORIES_PATH = Path(__file__).parent.parent / "data" / "user_categories.json"
+
+def load_default_wordlists() -> Dict[str, Any]:
+    """
+    Načte výchozí slovníky.
+    """
+    if not DEFAULT_WORDLIST_PATH.exists():
+        return {}
+    with open(DEFAULT_WORDLIST_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def load_user_categories() -> Dict[str, Any]:
+    """
+    Načte uživatelsky definované kategorie.
+    """
+    if not USER_CATEGORIES_PATH.exists():
+        return {}
+    with open(USER_CATEGORIES_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+DEFAULT_WORDLISTS = load_default_wordlists()
+USER_CATEGORIES = load_user_categories()
 
 def get_wordlist_path() -> Path:
     """
@@ -82,42 +45,43 @@ def get_wordlist_path() -> Path:
     Returns:
         Path: Cesta k souboru se slovníky
     """
-    return Path(__file__).parent / "wordlists.json"
+    return USER_CATEGORIES_PATH
 
 def load_wordlists() -> Dict[str, Dict[str, List[str]]]:
     """
-    Načte slovníky z JSON souboru nebo vrátí výchozí hodnoty, pokud soubor neexistuje.
-    
-    Returns:
-        Dict[str, Dict[str, List[str]]]: Slovníky pro různá pole a jazyky
+    Načte a sloučí výchozí a uživatelské slovníky.
     """
-    wordlist_path = get_wordlist_path()
+    wordlists = DEFAULT_WORDLISTS.copy()
+    user_wordlists = load_user_categories()
     
-    if wordlist_path.exists():
-        try:
-            with open(wordlist_path, "r", encoding="utf-8") as file:
-                return json.load(file)
-        except Exception as e:
-            logger.error(f"Chyba při načítání slovníků: {e}")
-            return DEFAULT_WORDLISTS.copy()
-    else:
-        return DEFAULT_WORDLISTS.copy()
+    # Sloučení slovníků, přičemž uživatelské mají přednost
+    for field, languages in user_wordlists.items():
+        if field not in wordlists:
+            wordlists[field] = {}
+        for lang, words in languages.items():
+            if lang not in wordlists[field]:
+                wordlists[field][lang] = []
+
+            # Přidání unikátních slov
+            existing_words = set(wordlists[field][lang])
+            wordlists[field][lang].extend([w for w in words if w not in existing_words])
+
+    return wordlists
 
 def save_wordlists(wordlists: Dict[str, Dict[str, List[str]]]) -> bool:
     """
-    Uloží slovníky do JSON souboru.
-    
-    Args:
-        wordlists: Slovníky k uložení
-        
-    Returns:
-        bool: Úspěch nebo neúspěch operace
+    Uloží uživatelsky definované slovníky.
     """
-    wordlist_path = get_wordlist_path()
+    user_wordlists = {}
     
+    # Uložení pouze uživatelsky definovaných polí
+    for field, languages in wordlists.items():
+        if field not in DEFAULT_WORDLISTS:
+            user_wordlists[field] = languages
+
     try:
-        with open(wordlist_path, "w", encoding="utf-8") as file:
-            json.dump(wordlists, file, ensure_ascii=False, indent=4)
+        with open(USER_CATEGORIES_PATH, "w", encoding="utf-8") as file:
+            json.dump(user_wordlists, file, ensure_ascii=False, indent=4)
         return True
     except Exception as e:
         logger.error(f"Chyba při ukládání slovníků: {e}")

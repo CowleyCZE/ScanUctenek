@@ -16,6 +16,13 @@ from utils.ocr_utils import perform_ocr, preprocess_image
 from utils.receipt_parser import extract_receipt_info, detect_language
 from utils.excel_export import export_to_excel
 from localization.translations import get_text
+from utils.word_lists import (
+    add_field,
+    get_all_fields,
+    remove_field,
+    load_user_categories,
+    save_wordlists,
+)
 import io
 
 # Konfigurace logování
@@ -61,13 +68,18 @@ def initialize_session_state() -> None:
     if 'excel_file' not in st.session_state:
         st.session_state.excel_file = None
     if 'receipt_categories' not in st.session_state:
-        st.session_state.receipt_categories = {
+        # Načtení výchozích a uživatelských kategorií
+        user_categories = load_user_categories()
+        default_categories = {
             'fuel': get_text('category_fuel', 'cs'),
             'toll': get_text('category_toll', 'cs'),
             'accommodation': get_text('category_accommodation', 'cs'),
             'food': get_text('category_food', 'cs'),
             'other': get_text('category_other', 'cs')
         }
+        # Sloučení kategorií
+        st.session_state.receipt_categories = {**default_categories, **user_categories}
+
     if 'selected_category' not in st.session_state:
         st.session_state.selected_category = 'fuel'
     if 'available_tags' not in st.session_state:
@@ -199,9 +211,10 @@ def process_scan_tab(tab: st.tabs) -> None:
     with tab:
         st.subheader("Skenování účtenky")
         
-        # Výběr zdroje obrázku
-        col1, col2 = st.columns([1, 3])
+        col1, col2 = st.columns([2, 3])
+
         with col1:
+            # Výběr zdroje obrázku
             image_source = st.radio(
                 "Zdroj obrázku",
                 ['upload', 'camera'],
@@ -209,17 +222,8 @@ def process_scan_tab(tab: st.tabs) -> None:
                 key='image_source_radio'
             )
             
-            if image_source != st.session_state.image_source:
-                st.session_state.image_source = image_source
-                st.session_state.preview_image = None
-                st.rerun()
-        
-        # Zobrazení náhledu a ovládacích prvků
-        col1, col2 = st.columns([2, 2])
-        
-        with col1:
             uploaded_file = None
-            if st.session_state.image_source == 'camera':
+            if image_source == 'camera':
                 if not st.session_state.camera_enabled:
                     if st.button("Zapnout kameru"):
                         st.session_state.camera_enabled = True
@@ -234,107 +238,50 @@ def process_scan_tab(tab: st.tabs) -> None:
                     "Nahrát obrázek",
                     type=['png', 'jpg', 'jpeg']
                 )
-                
-        with col2:
+
             # Zobrazení náhledu
             if uploaded_file is not None:
-                # Načtení obrázku pouze jednou
                 image_bytes = uploaded_file.read()
                 st.session_state.image_bytes = image_bytes
+                preview = Image.open(io.BytesIO(image_bytes))
+                st.session_state.preview_image = preview
+                st.image(preview, caption="Náhled účtenky", use_container_width=True)
 
-                try:
-                    # Vytvoření náhledu z načtených bajtů
-                    preview = Image.open(io.BytesIO(image_bytes))
-                    st.session_state.preview_image = preview
-                    
-                    st.image(preview, caption="Náhled účtenky", use_container_width=True)
-                    
-                except Exception as e:
-                    logger.error(f"Chyba při zobrazení náhledu: {str(e)}")
-            elif st.session_state.preview_image is not None:
-                st.image(st.session_state.preview_image, caption="Náhled účtenky", use_container_width=True)
-
-        # Zpracování obrázku, pokud je k dispozici
-        if 'image_bytes' in st.session_state and st.session_state.image_bytes:
-            try:
-                image = Image.open(io.BytesIO(st.session_state.image_bytes))
-                
-                # Zpracování obrázku
+        with col2:
+            # Zpracování obrázku a zobrazení formuláře
+            if 'image_bytes' in st.session_state and st.session_state.image_bytes:
                 with st.spinner('Zpracovávám obrázek...'):
-                    extracted_text, structured_data = process_receipt_image(image)
+                    image = Image.open(io.BytesIO(st.session_state.image_bytes))
+                    extracted_text, _ = process_receipt_image(image)
                 
                 if extracted_text:
-                    # Extrakce informací z textu
                     receipt_info = extract_receipt_info(extracted_text)
                     
-                    # Zobrazení výsledků
                     st.subheader("Extrahované informace")
-                    
-                    # Formulář pro úpravu dat
                     with st.form("receipt_form"):
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            merchant = st.text_input(
-                                "Obchodník",
-                                value=receipt_info.get('merchant', '')
-                            )
-                            date = st.date_input(
-                                "Datum",
-                                value=receipt_info.get('date', datetime.now())
-                            )
-                            payment_method = st.selectbox(
-                                "Způsob platby",
-                                options=['Kartou', 'Hotovost'],
-                                index=0
-                            )
-                            
-                        with col2:
-                            total = st.number_input(
-                                "Celková částka",
-                                min_value=0.0,
-                                value=float(receipt_info.get('total', 0.0))
-                            )
-                            currency = st.selectbox(
-                                "Měna",
-                                options=APP_CONFIG['supported_currencies'],
-                                index=APP_CONFIG['supported_currencies'].index(
-                                    receipt_info.get('currency', APP_CONFIG['default_currency'])
-                                )
-                            )
-                            purpose = st.selectbox(
-                                "Účel",
-                                options=['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní'],
-                                index=0
-                            )
-                            
-                        # Uložení účtenky
+                        merchant = st.text_input("Obchodník", value=receipt_info.get('merchant', ''))
+                        date = st.date_input("Datum", value=receipt_info.get('date', datetime.now()))
+                        total = st.number_input("Celková částka", min_value=0.0, value=float(receipt_info.get('total', 0.0)))
+                        currency = st.selectbox("Měna", options=APP_CONFIG['supported_currencies'],
+                                                index=APP_CONFIG['supported_currencies'].index(receipt_info.get('currency', APP_CONFIG['default_currency'])))
+                        payment_method = st.selectbox("Způsob platby", options=['Kartou', 'Hotovost'], index=0)
+                        purpose = st.selectbox("Účel", options=['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní'], index=0)
+
                         if st.form_submit_button("Uložit účtenku"):
                             receipt_data = {
-                                'merchant': merchant,
-                                'date': date,
-                                'total': total,
-                                'currency': currency,
-                                'category': st.session_state.selected_category,
-                                'payment_method': payment_method,
-                                'purpose': purpose,
-                                'timestamp': datetime.now()
+                                'merchant': merchant, 'date': date, 'total': total, 'currency': currency,
+                                'category': st.session_state.selected_category, 'payment_method': payment_method,
+                                'purpose': purpose, 'timestamp': datetime.now()
                             }
-                            
                             if save_receipt(receipt_data):
-                                st.success("Účtenka byla úspěšně uložena")
-                                # Vyčištění náhledu a bajtů obrázku po uložení
+                                st.success("Účtenka byla úspěšně uložena.")
                                 st.session_state.preview_image = None
                                 st.session_state.image_bytes = None
                                 st.rerun()
                             else:
-                                st.error("Chyba při ukládání účtenky")
+                                st.error("Chyba při ukládání účtenky.")
                 else:
                     st.warning("Nepodařilo se extrahovat žádný text. Zkuste prosím jiný obrázek.")
-                                
-            except Exception as e:
-                logger.error(f"Chyba při zpracování obrázku: {str(e)}")
-                st.error("Došlo k chybě při zpracování obrázku. Zkuste to prosím znovu.")
 
 def process_history_tab(tab: st.tabs) -> None:
     """
@@ -470,6 +417,44 @@ def process_settings_tab(tab: st.tabs) -> None:
             st.session_state.ocr_provider = ocr_provider
             st.rerun()
 
+        # Správa kategorií
+        st.subheader("Správa kategorií")
+
+        user_categories = load_user_categories()
+
+        # Formulář pro přidání nové kategorie
+        with st.form("new_category_form"):
+            new_category_name = st.text_input("Název nové kategorie")
+            new_category_keywords = st.text_area("Klíčová slova (oddělená čárkou)")
+
+            if st.form_submit_button("Přidat kategorii"):
+                if new_category_name and new_category_keywords:
+                    keywords = [k.strip() for k in new_category_keywords.split(',')]
+                    # Přidání kategorie pro všechny podporované jazyky
+                    words_dict = {lang: keywords for lang in APP_CONFIG['supported_languages']}
+                    if add_field(new_category_name.lower(), words_dict):
+                        st.success(f"Kategorie '{new_category_name}' byla přidána.")
+                        st.rerun()
+                    else:
+                        st.error(f"Kategorie '{new_category_name}' již existuje.")
+                else:
+                    st.warning("Název kategorie a klíčová slova jsou povinná.")
+
+        # Zobrazení a správa uživatelských kategorií
+        st.write("Uživatelské kategorie:")
+        for category_name in user_categories.keys():
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(category_name)
+            with col2:
+                if st.button(f"Smazat {category_name}", key=f"delete_{category_name}"):
+                    if remove_field(category_name):
+                        st.success(f"Kategorie '{category_name}' byla smazána.")
+                        st.rerun()
+                    else:
+                        st.error(f"Chyba při mazání kategorie '{category_name}'.")
+
+
 def main():
     """
     Hlavní funkce aplikace.
@@ -503,10 +488,14 @@ def main():
         
         # Kategorie účtenek
         st.subheader("Kategorie účtenek")
+
+        # Načtení všech kategorií
+        all_categories = list(st.session_state.receipt_categories.keys())
+
         category = st.radio(
             "Vyberte kategorii účtenky",
-            options=list(APP_CONFIG['receipt_categories'].keys()),
-            format_func=lambda x: st.session_state.receipt_categories[x],
+            options=all_categories,
+            format_func=lambda x: st.session_state.receipt_categories.get(x, x),
             key='category_radio'
         )
         

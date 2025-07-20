@@ -178,6 +178,8 @@ def extract_receipt_info(text: str, language: str = 'cs') -> Dict[str, Any]:
             'specific_data': {}
         }
 
+from utils.word_lists import get_words, get_all_fields
+
 def determine_receipt_type(text: str, language: str) -> str:
     """
     Určuje typ účtenky na základě obsahu textu.
@@ -190,39 +192,20 @@ def determine_receipt_type(text: str, language: str) -> str:
         Typ účtenky ('Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní')
     """
     try:
-        # Kontrola klíčových slov pro pohonné hmoty
-        fuel_words = get_words('fuel', language)
-        for keyword in fuel_words:
-            if keyword.lower() in text.lower():
-                # Dodatečná verifikace pro účtenky z čerpací stanice
-                if any(re.search(pattern, text, re.IGNORECASE) for pattern in [
-                    r'(\d+[.,]\d+)\s*[lL]',
-                    r'[qQ]uantit[eé]',
-                    r'[vV]olume',
-                    r'[lL]itre',
-                    r'[gG]azole',
-                    r'[dD]iesel'
-                ]):
-                    return 'Pohonné hmoty'
+        # Získání všech dostupných kategorií
+        all_categories = get_all_fields()
         
-        # Kontrola klíčových slov pro mýtné
-        toll_words = get_words('toll', language)
-        for keyword in toll_words:
-            if keyword.lower() in text.lower():
-                # Dodatečná verifikace pro mýtné účtenky
-                if any(re.search(pattern, text, re.IGNORECASE) for pattern in [
-                    r'[kK]m',
-                    r'[tT]rajet',
-                    r'[sS]ortie',
-                    r'[eE]ntrée'
-                ]):
-                    return 'Mýtné'
-        
-        # Kontrola klíčových slov pro ubytování
-        accommodation_words = get_words('accommodation', language)
-        for keyword in accommodation_words:
-            if keyword.lower() in text.lower():
-                return 'Ubytování'
+        # Iterace přes všechny kategorie a hledání klíčových slov
+        for category in all_categories:
+            # Přeskočení obecných polí, které nejsou kategoriemi
+            if category in ['date', 'total', 'currency', 'payment_method', 'merchant', 'purpose']:
+                continue
+
+            words = get_words(category, language)
+            for keyword in words:
+                if keyword.lower() in text.lower():
+                    # Zde by mohla být dodatečná verifikace pro konkrétní kategorie
+                    return category.replace('_', ' ').capitalize()
         
         return 'Ostatní'
         
