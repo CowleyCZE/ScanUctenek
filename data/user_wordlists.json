@@ -33,7 +33,8 @@
       "zaplaceno",
       "uhrazeno",
       "suma",
-      "cena celkem"
+      "cena celkem",
+      "total"
     ],
     "fr": [
       "total",
