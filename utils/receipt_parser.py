@@ -205,7 +205,8 @@ def determine_receipt_type(text: str, language: str) -> str:
             for keyword in words:
                 if keyword.lower() in text.lower():
                     # Zde by mohla být dodatečná verifikace pro konkrétní kategorie
-                    return category.replace('_', ' ').capitalize()
+                    # Return the first keyword, which is the localized name
+                    return words[0].capitalize()
         
         return 'Ostatní'
         
