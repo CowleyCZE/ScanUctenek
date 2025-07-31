@@ -169,6 +169,10 @@ def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', oc
             }
             
             # Vytvoření strukturovaných dat
+            # Vytvoření strukturovaných dat
+            confidence_values = [float(conf) for conf in data['conf'] if float(conf) > 0]
+            mean_confidence = np.mean(confidence_values) if confidence_values else 0.0
+
             structured_data = {
                 'merchant': '',
                 'date': None,
@@ -176,7 +180,7 @@ def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', oc
                 'items': [],
                 'metadata': {
                     'language': language,
-                    'confidence': np.mean([float(conf) for conf in data['conf'] if float(conf) > 0]),
+                    'confidence': mean_confidence,
                     'processing_time': None
                 }
             }

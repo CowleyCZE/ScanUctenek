@@ -78,7 +78,7 @@ def detect_language(text: str) -> str:
                 (r'[áčďéěíňóřšťúůýž]', 2)
             ],
             'fr': [
-                (r'n°|tva|ttc|eur|montant|total|prix', 2),
+                (r'n°|tva|ttc|eur|montant|prix', 2),
                 (r'[àâçèéêëîïôûùü]', 2)
             ],
             'de': [
@@ -233,7 +233,7 @@ def extract_merchant(text: str, language: str) -> str:
             'AVIA': r'AVIA\s*(?:SELF)*\s*(?:SERVICE)*',
             'GULF': r'GULF\s*(?:OIL)*\s*(?:STATION)*',
             'OMV': r'OMV\s*(?:TANK)*\s*(?:STATION)*',
-            'TOTALENERGIES': r'TOTAL(?:\s*ENERGIES)*',
+            'TOTALENERGIES': r'TOTAL(?:\s*ENERGIES)*\s*(?:STATION|STANICE)*',
             'SHELL': r'SHELL\s*(?:STATION)*',
             'MOL': r'MOL\s*(?:STATION)*',
             'ORLEN': r'ORLEN\s*(?:BENZINA)*',
@@ -324,7 +324,8 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
     try:
         # Vylepšené regulární výrazy pro hledání klíčových slov a částek
         total_keywords = get_words('total', language)
-        amount_pattern = r'(\d+[.,]\d{2})'
+        # Regex pro částky, který zvládá mezery jako oddělovače tisíců
+        amount_pattern = r'((?:\d{1,3}(?:\s\d{3})*|\d+)[,.]\d{2})'
         
         lines = text.split('\n')
         potential_amounts = []
@@ -340,7 +341,8 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
                 numbers = re.findall(amount_pattern, line)
                 if numbers:
                     # Přidání poslední nalezené částky (obvykle celková)
-                    potential_amounts.append(float(numbers[-1].replace(',', '.')))
+                    cleaned_number = numbers[-1].replace(' ', '').replace(',', '.')
+                    potential_amounts.append(float(cleaned_number))
 
         # Pokud byly nalezeny potenciální částky, vrátíme nejvyšší
         if potential_amounts:
@@ -350,7 +352,7 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
         all_numbers = re.findall(amount_pattern, text)
         if all_numbers:
             # Převedeme všechny nalezené řetězce na čísla
-            all_amounts = [float(num.replace(',', '.')) for num in all_numbers]
+            all_amounts = [float(num.replace(' ', '').replace(',', '.')) for num in all_numbers]
             # Vrátíme nejvyšší hodnotu, která je pravděpodobně celkovou částkou
             return max(all_amounts)
 
@@ -456,15 +458,18 @@ def extract_fuel_data(text: str, language: str) -> Dict[str, Any]:
             except ValueError:
                 logger.warning("Nepodařilo se extrahovat množství paliva")
                 
-        # Extrakce ceny za litr
-        price_pattern = r'(\d+[.,]\d+)\s*(?:Kč|CZK|€|EUR)\s*/\s*[lL]'
-        price_match = re.search(price_pattern, text, re.IGNORECASE)
-        if price_match:
-            try:
-                result['price_per_liter'] = float(price_match.group(1).replace(',', '.'))
-            except ValueError:
-                logger.warning("Nepodařilo se extrahovat cenu za litr")
-                
+        # Extrakce ceny za litr - vylepšená logika
+        for line in text.split('\n'):
+            # Hledání klíčových slov pro cenu za litr
+            if any(keyword in line.lower() for keyword in ['cena/l', 'price/l', 'prix/l']):
+                price_match = re.search(r'(\d+[.,]\d+)', line)
+                if price_match:
+                    try:
+                        result['price_per_liter'] = float(price_match.group(1).replace(',', '.'))
+                        break  # Nalezeno, přerušit smyčku
+                    except ValueError:
+                        logger.warning("Nepodařilo se extrahovat cenu za litr z řádku: " + line)
+
         return result
         
     except Exception as e:
@@ -512,14 +517,14 @@ def extract_toll_data(text: str, language: str) -> Dict[str, Any]:
         entry_match = re.search(entry_patterns.get(language, entry_patterns['cs']), text, re.IGNORECASE)
         if entry_match:
             # Extrakce textu po vstupním bodě
-            entry_text = text[entry_match.end():].split('\n')[0].strip()
+            entry_text = text[entry_match.end():].split('\n')[0].strip().lstrip(':').strip()
             result['entry_point'] = entry_text
             
         # Hledání výstupního bodu
         exit_match = re.search(exit_patterns.get(language, exit_patterns['cs']), text, re.IGNORECASE)
         if exit_match:
             # Extrakce textu po výstupním bodě
-            exit_text = text[exit_match.end():].split('\n')[0].strip()
+            exit_text = text[exit_match.end():].split('\n')[0].strip().lstrip(':').strip()
             result['exit_point'] = exit_text
             
         # Extrakce vzdálenosti
