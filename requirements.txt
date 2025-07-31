@@ -4,7 +4,7 @@ pandas==2.2.0
 
 # Image processing
 opencv-python-headless==4.11.0.86
-Pillow==9.5.0
+Pillow==11.3.0
 
 # OCR
 pytesseract==0.3.10
