@@ -1,153 +1,145 @@
-# SkenÚčtenek
+# Hlasový Asistent pro Android
 
-SkenÚčtenek je webová aplikace postavená na frameworku Streamlit, která slouží k jednoduchému skenování, zpracování a archivaci účtenek. Aplikace využívá technologii optického rozpoznávání znaků (OCR) k automatické extrakci klíčových informací z nahraných obrázků účtenek.
+Tento projekt je open-source hlasový asistent pro Android. Je postaven na platformě **NativeScript** s použitím **TypeScriptu** a **Tailwind CSS**. Umožňuje uživatelům definovat vlastní hlasové příkazy a mapovat je na konkrétní akce, jako je volání webhooků nebo spouštění úloh v aplikaci Tasker.
 
 ## Klíčové funkce
 
-- **Skenování účtenek**: Umožňuje nahrát obrázek účtenky z počítače nebo pořídit snímek pomocí kamery.
-- **Automatická extrakce dat (OCR)**: Využívá Tesseract OCR k rozpoznání textu na účtence a extrakci údajů jako jsou:
-  - Obchodník
-  - Datum
-  - Celková částka
-  - Měna (CZK/EUR)
-  - Způsob platby
-- **Kategorizace**: Možnost zařadit účtenky do předdefinovaných kategorií (např. Pohonné hmoty, Mýtné, Ubytování) nebo si vytvořit vlastní.
-- **Historie a správa**: Ukládání zpracovaných účtenek do historie pro pozdější použití a správu.
-- **Export do Excelu**: Možnost exportovat data o účtenkách do souboru `.xlsx` pro další zpracování nebo archivaci.
-- **Podpora více jazyků**: Aplikace podporuje češtinu, francouzštinu a němčinu, a to jak v uživatelském rozhraní, tak při zpracování účtenek.
-- **Responzivní design**: Díky Streamlitu je aplikace použitelná na různých zařízeních.
+- **Vlastní aktivační fráze:** Nastavte si vlastní "wake word" pro aktivaci asistenta.
+- **Správa akcí:** Vytvářejte a spravujte neomezený počet vlastních hlasových příkazů.
+- **Podpora Webhooků:** Spouštějte automatizaci v chytré domácnosti (Home Assistant, IFTTT, atd.) voláním libovolné URL adresy.
+- **Integrace s Taskerem:** Ovládejte jakoukoliv funkci telefonu spouštěním úloh v populární automatizační aplikaci **Tasker**.
+- **Zvuková zpětná vazba:** Volitelné zvukové signály pro lepší interakci.
+- **Jednoduché rozhraní:** Přehledné a snadno ovladatelné rozhraní pro nastavení.
 
-## Použité technologie
+---
 
-Aplikace je postavena na následujících technologiích a knihovnách:
+## Jak to funguje (Architektura)
 
-- **Frontend**:
-  - [Streamlit](https://streamlit.io/): Hlavní framework pro vytvoření interaktivního webového uživatelského rozhraní.
+Aplikace je navržena tak, aby byla co nejefektivnější a reagovala rychle. Zde je zjednodušený popis její vnitřní architektury:
 
-- **Backend & Zpracování dat**:
-  - [Python](https://www.python.org/): Programovací jazyk, ve kterém je napsána celá aplikace.
-  - [Pandas](https://pandas.pydata.org/): Knihovna pro manipulaci a analýzu dat, použitá pro práci s tabulkovými daty.
-  - [NumPy](https://numpy.org/): Knihovna pro numerické operace, využívaná především při zpracování obrázků.
+1.  **Detekce aktivační fráze:** Po spuštění aplikace neustále naslouchá v úsporném režimu (`SpeechRecognitionService`). Neanalyzuje vše, co slyší, ale čeká pouze na jednu z vámi definovaných **aktivačních frází** (např. "Hey asistente").
 
-- **Zpracování obrázků a OCR**:
-  - [OpenCV (opencv-python-headless)](https://opencv.org/): Knihovna pro počítačové vidění, použitá pro předzpracování obrázků (např. ořez, filtrace šumu).
-  - [Pillow (PIL)](https://python-pillow.org/): Knihovna pro práci s obrázky.
-  - [Pytesseract](https://github.com/madmaze/pytesseract): Wrapper pro OCR engine Tesseract, který umožňuje extrakci textu z obrázků.
+2.  **Rozpoznání příkazu:** Jakmile je aktivační fráze rozpoznána, asistent se přepne do aktivního režimu a nahraje následující větu – váš příkaz.
 
-- **Export dat**:
-  - [openpyxl](https://openpyxl.readthedocs.io/en/stable/): Knihovna pro čtení a zápis souborů Excel (`.xlsx`).
+3.  **Zpracování příkazu:** Rozpoznaný text je předán službě `AssistantService`, která jej porovná se seznamem vašich **akcí**. Hledá shodu mezi vysloveným příkazem a "spouštěcí frází" definovanou u každé akce.
 
-- **Testování a vývojové nástroje**:
-  - [Pytest](https://docs.pytest.org/): Framework pro psaní a spouštění testů.
-  - [Black](https://github.com/psf/black): Formátovač kódu pro udržení konzistentního stylu.
-  - [Flake8](https://flake8.pycqa.org/en/latest/): Nástroj pro kontrolu kvality kódu a dodržování konvencí.
+4.  **Provedení akce:** Pokud je nalezena shoda, provede se příslušná akce:
+    *   **Webhook:** Zavolá se zadaná URL adresa metodou `POST`. To je ideální pro ovládání chytré domácnosti (např. Home Assistant, IFTTT).
+    *   **Tasker:** Odešle se příkaz (Intent) do aplikace Tasker ke spuštění konkrétní úlohy.
 
-## Instalace a spuštění
+5.  **Ukládání nastavení:** Veškerá vaše konfigurace (aktivační fráze, akce, atd.) je trvale uložena přímo v úložišti aplikace na vašem telefonu. K tomu se využívá klíč-hodnota úložiště (`key-value store`) poskytované NativeScriptem (`ApplicationSettings`). To znamená, že vaše data zůstanou zachována i po restartu aplikace.
 
-Pro spuštění aplikace na lokálním počítači postupujte podle následujících kroků:
+---
 
-**1. Předpoklady**
+## Technologický stack
 
-- Nainstalovaný [Python](https://www.python.org/downloads/) verze 3.8 nebo vyšší.
-- Nainstalovaný [Git](https://git-scm.com/downloads) pro klonování repozitáře.
-- Nainstalovaný **Tesseract OCR engine**. Pytesseract je pouze wrapper, takže Tesseract musí být nainstalován v systému.
-  - Instalační instrukce naleznete v [dokumentaci Tesseractu](https://tesseract-ocr.github.io/tessdoc/Installation.html).
-  - Ujistěte se, že máte nainstalované i jazykové balíčky pro jazyky, které chcete používat (čeština, francouzština, němčina).
+Tento projekt využívá následující technologie:
 
-**2. Klonování repozitáře**
+-   **[NativeScript](https://nativescript.org/)**: Framework pro vývoj nativních mobilních aplikací pro iOS a Android z jedné kódové základny.
+-   **[TypeScript](https://www.typescriptlang.org/)**: Staticky typovaný nadmnožina JavaScriptu, která zvyšuje robustnost a usnadňuje údržbu kódu.
+-   **[Tailwind CSS](https://tailwindcss.com/)**: "Utility-first" CSS framework pro rychlý a efektivní design uživatelského rozhraní.
+-   **Android SpeechRecognizer**: Nativní API od Androidu pro převod řeči na text, které zajišťuje vysokou přesnost a efektivitu.
 
-```bash
-git clone https://github.com/vas-projekt/SkenUctenek.git
-cd SkenUctenek
-```
-*(Poznámka: URL adresa repozitáře je zde jako příklad, nahraďte ji skutečnou adresou.)*
+---
 
-**3. Vytvoření a aktivace virtuálního prostředí**
+## Uživatelská příručka
 
-Je doporučeno používat virtuální prostředí, aby se předešlo konfliktům mezi balíčky.
+### První spuštění
 
-- **Windows**:
-  ```bash
-  python -m venv venv
-  venv\Scripts\activate
-  ```
-- **macOS / Linux**:
-  ```bash
-  python3 -m venv venv
-  source venv/bin/activate
-  ```
+Při prvním spuštění vás aplikace požádá o **povolení k přístupu k mikrofonu**. Toto povolení je nezbytné pro rozpoznávání hlasu. Prosím, povolte ho.
 
-**4. Instalace závislostí**
+Po udělení oprávnění přejde aplikace do pohotovostního režimu. Na hlavní obrazovce uvidíte stav "Čekám na aktivační frázi...".
 
-Nainstalujte všechny potřebné knihovny pomocí souboru `requirements.txt`.
+### Základní použití
 
-```bash
-pip install -r requirements.txt
-```
+1.  **Aktivace asistenta:** Řekněte jednu z aktivačních frází. Výchozí fráze jsou "**Hey asistente**" nebo "**Pomoc**".
+2.  **Vyslovení příkazu:** Po aktivační frázi se stav změní na "Poslouchám...". Nyní vyslovte svůj příkaz (např. "rozsviť světlo v obýváku").
+3.  **Zpracování:** Asistent rozpozná váš příkaz, provede nastavenou akci a zobrazí výsledek. Poté se opět vrátí do pohotovostního režimu.
 
-**5. Spuštění aplikace**
+### Nastavení aplikace
 
-Po úspěšné instalaci závislostí můžete spustit aplikaci.
+Na hlavní obrazovce klepněte na tlačítko **"Nastavení"** pro konfiguraci aplikace.
 
-```bash
-streamlit run app.py
-```
+#### 1. Správa akcí
 
-Aplikace by se měla otevřít ve vašem webovém prohlížeči na adrese `http://localhost:8501`.
+Zde definujete, co má asistent dělat.
 
-## Jak používat aplikaci
+-   **Přidání nové akce:**
+    1.  **Název:** Pojmenujte si akci (např. "Světla v kuchyni").
+    2.  **Spouštěcí fráze:** Napište frázi, kterou chcete akci spustit (např. "rozsviť v kuchyni"). Asistent hledá tuto frázi ve vašem příkazu, takže nemusí být přesná.
+    3.  **Typ akce:** Vyberte si jednu ze dvou možností:
+        -   **Webhook:** Pro volání webové adresy (URL).
+            -   Do pole **"URL adresa webhooku"** vložte celou adresu, která se má zavolat.
+        -   **Tasker:** Pro spuštění úlohy ve specifické aplikaci **Tasker**.
+            -   Do pole **"Název úlohy v Taskeru"** napište **přesný název** úlohy, jak ji máte pojmenovanou v aplikaci Tasker.
+    4.  Klepněte na **"Přidat akci"**.
 
-Aplikace je rozdělena do několika záložek pro snadnou orientaci.
+-   **Seznam akcí:**
+    -   Pod formulářem vidíte seznam všech vašich nastavených akcí.
+    -   Pro smazání akce klepněte na tlačítko **"Odstranit"** vedle ní.
 
-1.  **Výběr kategorie (v postranním panelu)**
-    - V levém postranním panelu si nejprve zvolte kategorii, do které chcete účtenku zařadit (např. `Pohonné hmoty`).
+#### 2. Další nastavení
 
-2.  **Skenování účtenky (záložka "Skenování")**
-    - Vyberte zdroj obrázku: `Nahrát obrázek` nebo `Použít kameru`.
-    - Po nahrání/vyfocení se zobrazí náhled a aplikace automaticky zpracuje obrázek.
-    - Zobrazí se formulář s extrahovanými údaji. Zkontrolujte je a případně upravte.
-    - Klikněte na tlačítko `Uložit účtenku`.
+-   **Aktivační fráze:** Spravujte seznam frází, na které bude asistent reagovat.
+-   **Zvuková zpětná vazba:** Zapněte nebo vypněte zvuky, které signalizují začátek a konec nahrávání.
 
-3.  **Historie účtenek (záložka "Historie")**
-    - Zde naleznete seznam všech uložených účtenek pro vybranou kategorii.
-    - Účtenky můžete rozkliknout pro zobrazení detailů nebo je smazat.
+---
 
-4.  **Export do Excelu (záložka "Export")**
-    - Na této záložce můžete exportovat všechny účtenky z vybrané kategorie do souboru Excel.
-    - Klikněte na `Exportovat do Excelu` a následně na `Stáhnout Excel soubor`.
+## Požadavky
 
-5.  **Nastavení (záložka "Nastavení")**
-    - **Změna jazyka**: Změňte jazyk uživatelského rozhraní.
-    - **Správa kategorií**:
-        - Přidejte si vlastní kategorie pro lepší organizaci. Zadejte název a klíčová slova, která pomohou aplikaci kategorii rozpoznat.
-        - Můžete mazat uživatelsky definované kategorie.
+### Integrace s Taskerem
 
-## Struktura projektu
+-   Abyste mohli používat akce typu "Tasker", musíte mít na svém telefonu nainstalovanou aplikaci **[Tasker](https://play.google.com/store/apps/details?id=net.dinglisch.android.taskerm)** od vývojáře joaomgcd.
+-   V Taskeru musíte povolit externí kontrolu. V menu Taskeru jděte do `Preferences -> Misc -> Allow External Access` a ujistěte se, že je tato volba zaškrtnutá.
 
-Projekt má následující adresářovou strukturu:
+---
 
-```
-.
-├── app.py                  # Hlavní soubor Streamlit aplikace
-├── assets/                 # Statické soubory (logo, obrázky)
-├── data/                   # Datové soubory (uživatelské kategorie, slovníky)
-├── localization/           # Moduly pro překlady a lokalizaci
-├── styles/                 # CSS styly pro úpravu vzhledu
-├── templates/              # Šablony (např. pro export do Excelu)
-├── tests/                  # Automatizované testy
-├── utils/                  # Pomocné moduly pro specifické úkoly:
-│   ├── ocr.py              # Logika pro OCR
-│   ├── receipt_parser.py   # Extrakce dat z textu účtenky
-│   ├── excel_export.py     # Funkce pro export do Excelu
-│   └── ...                 # a další...
-├── requirements.txt        # Seznam Python závislostí
-└── README.md               # Tento soubor
-```
+## Příručka pro vývojáře
 
-## Možnosti přispění
+Pokud chcete přispět do projektu nebo si aplikaci sami sestavit, postupujte podle následujících kroků.
 
-Příspěvky do projektu jsou vítány! Pokud máte nápad na vylepšení nebo jste objevili chybu, neváhejte vytvořit "Issue" nebo "Pull Request" v tomto repozitáři.
+### Požadavky pro vývoj
 
-## Licence
+-   **[Node.js](https://nodejs.org/)**: Ujistěte se, že máte nainstalovanou aktuální LTS verzi.
+-   **NativeScript CLI**: Nainstalujte jej globálně pomocí příkazu:
+    ```bash
+    npm install -g nativescript
+    ```
+-   **Android Studio**: Pro nastavení Android SDK a emulátoru. Sledujte oficiální [instrukce pro nastavení NativeScriptu](https://docs.nativescript.org/environment-setup.html#android-setup).
 
-Tento projekt je distribuován pod licencí MIT. Více informací naleznete v souboru `LICENSE`. (Poznámka: soubor LICENSE není součástí tohoto repozitáře, je třeba ho přidat).
+### Instalace a spuštění
+
+1.  **Klonování repozitáře:**
+    ```bash
+    git clone https://github.com/TestujuJa/CZE-asistent.git
+    cd CZE-asistent
+    ```
+
+2.  **Instalace závislostí:**
+    ```bash
+    npm install
+    ```
+
+3.  **Spuštění na zařízení nebo emulátoru:**
+    Připojte své Android zařízení nebo spusťte emulátor a poté spusťte příkaz:
+    ```bash
+    ns run android
+    ```
+
+### Struktura projektu
+
+-   `app/`: Hlavní adresář s veškerým kódem aplikace.
+    -   `app-root.xml`: Kořenové zobrazení aplikace.
+    -   `main-page.xml` / `main-page.ts`: Hlavní stránka aplikace a její view-model.
+    -   `settings-page.xml` / `settings-page.ts`: Stránka s nastavením a její view-model.
+    -   `services/`: Oddělená logika pro různé funkce (rozpoznávání řeči, správa nastavení, atd.).
+    -   `assets/`: Statické soubory, jako jsou zvuky.
+-   `App_Resources/`: Specifické zdroje pro platformu Android (ikony, manifest, atd.).
+-   `nativescript.config.ts`: Konfigurační soubor pro NativeScript.
+-   `package.json`: Seznam závislostí a skriptů projektu.
+
+---
+
+[Edit in StackBlitz ⚡️][def]
+
+[def]: https://stackblitz.com/~/github.com/TestujuJa/CZE-asistent
