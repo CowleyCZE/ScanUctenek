@@ -201,7 +201,7 @@ def delete_receipt(index: int) -> bool:
         logger.error(f"Chyba při mazání účtenky: {str(e)}")
         return False
 
-def process_scan_tab(tab: st.tabs) -> None:
+def process_scan_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     """
     Zpracuje záložku pro skenování účtenek.
     
@@ -283,7 +283,7 @@ def process_scan_tab(tab: st.tabs) -> None:
                 else:
                     st.warning("Nepodařilo se extrahovat žádný text. Zkuste prosím jiný obrázek.")
 
-def process_history_tab(tab: st.tabs) -> None:
+def process_history_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     """
     Zpracuje záložku s historií účtenek.
     
@@ -335,7 +335,7 @@ def process_history_tab(tab: st.tabs) -> None:
                         else:
                             st.error("Chyba při mazání účtenky")
 
-def process_export_tab(tab: st.tabs) -> None:
+def process_export_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     """
     Zpracuje záložku pro export účtenek.
     
@@ -389,7 +389,7 @@ def process_export_tab(tab: st.tabs) -> None:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-def process_settings_tab(tab: st.tabs) -> None:
+def process_settings_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     """
     Zpracuje záložku s nastavením aplikace.
     
