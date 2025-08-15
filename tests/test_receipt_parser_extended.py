@@ -48,7 +48,7 @@ def test_extract_payment_method_cash():
 
 def test_extract_payment_method_default():
     text = "Děkujeme za nákup."
-    assert extract_payment_method(text, 'cs') == 'Hotovost' # Výchozí hodnota
+    assert extract_payment_method(text, 'cs') == 'Neznámý' # Výchozí hodnota by měla být Neznámý
 
 # --- Testy pro extrakci čísla účtenky ---
 def test_extract_receipt_number_cs():
@@ -126,3 +126,59 @@ def test_extract_date_extended():
     assert extract_date(text1, 'cs') == datetime(2024, 3, 13)
     assert extract_date(text2, 'cs') == datetime(2024, 3, 13)
     assert extract_date(text3, 'en') is None # Očekáváme, že nenajde platné datum
+
+# --- Testy pro nově přidanou a vylepšenou logiku ---
+
+def test_extract_merchant_improved():
+    """Testuje vylepšenou logiku extrakce obchodníka."""
+    # Test na velká písmena
+    text_upper = "MŮJ SUPER OBCHOD\nulice 123\n123 45 Město"
+    assert extract_merchant(text_upper, 'cs') == "MŮJ SUPER OBCHOD"
+
+    # Test na právní formu s.r.o.
+    text_sro = "Skvělé Potraviny s.r.o.\nTel: 111 222 333"
+    assert extract_merchant(text_sro, 'cs') == "Skvělé Potraviny s.r.o."
+
+    # Test, kde je název níže
+    text_lower_pos = "Účtenka\n\nSUPER MARKET ABC\nDatum: 01.01.2025"
+    assert extract_merchant(text_lower_pos, 'cs') == "SUPER MARKET ABC"
+
+def test_extract_total_amount_improved_fallback():
+    """Testuje vylepšenou fallback logiku pro celkovou částku."""
+    text = "Položka 1: 100.00\nPoložka 2: 999.99\n\nSoučet: 1099.99\nDaň: 100.00\nCelkem k úhradě: 1199.99"
+    # Tento test by měl projít díky klíčovým slovům
+    assert extract_total_amount(text, 'cs') == 1199.99
+
+    # Test fallback logiky - žádné klíčové slovo, celková částka je v posledních řádcích
+    text_fallback = "Položka 1: 50.00\nPoložka 2: 70.00\n\n120,00"
+    assert extract_total_amount(text_fallback, 'cs') == 120.00
+
+def test_extract_payment_method_improved():
+    """Testuje vylepšenou logiku pro detekci platební metody."""
+    # Test nových klíčových slov
+    text_visa = "Platba byla provedena kartou VISA."
+    text_mastercard = "Zaplaceno přes MasterCard, částka 500 Kč."
+    assert extract_payment_method(text_visa, 'cs') == 'Kartou'
+    assert extract_payment_method(text_mastercard, 'cs') == 'Kartou'
+
+    # Test výchozí hodnoty "Neznámý"
+    text_unknown = "Děkujeme za Váš nákup."
+    assert extract_payment_method(text_unknown, 'cs') == 'Neznámý'
+
+    # Test, kdy je informace na konci
+    text_end = "Položka 1\nPoložka 2\n\nPlaceno hotově."
+    assert extract_payment_method(text_end, 'cs') == 'Hotovost'
+
+def test_detect_currency_improved():
+    """Testuje vylepšenou, kontextovou detekci měny."""
+    # Měna je na stejném řádku jako klíčové slovo "celkem"
+    text_context = "Mezisoučet: 100.00\nCelkem k úhradě: 121.00 EUR"
+    assert detect_currency(text_context, 'cs') == 'EUR'
+
+    # Měna je jinde, ale na řádku s "celkem" není, fallback na globální hledání
+    text_fallback_global = "Měna transakce: EUR\nCelkem k úhradě: 121.00"
+    assert detect_currency(text_fallback_global, 'cs') == 'EUR'
+
+    # Na řádku s "celkem" je CZK, i když jinde v textu je EUR
+    text_priority = "Info: Ceny jsou v EUR\n\nCelkem: 599.00 Kč"
+    assert detect_currency(text_priority, 'cs') == 'CZK'
