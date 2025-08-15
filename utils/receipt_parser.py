@@ -228,8 +228,9 @@ def extract_merchant(text: str, language: str) -> str:
     try:
         lines = text.strip().split('\n')
         
-        # Známí obchodníci s více variacemi
+        # Rozšířený seznam známých obchodníků s více variacemi
         known_merchants = {
+            # Pohonné hmoty
             'AVIA': r'AVIA\s*(?:SELF)*\s*(?:SERVICE)*',
             'GULF': r'GULF\s*(?:OIL)*\s*(?:STATION)*',
             'OMV': r'OMV\s*(?:TANK)*\s*(?:STATION)*',
@@ -238,9 +239,17 @@ def extract_merchant(text: str, language: str) -> str:
             'MOL': r'MOL\s*(?:STATION)*',
             'ORLEN': r'ORLEN\s*(?:BENZINA)*',
             'BENZINA': r'BENZINA\s*(?:PLUS)*',
+            # Dálnice a mýtné
             'SANEF': r'SANEF\s*(?:PEAGE)*',
             'COFIROUTE': r'COFIROUTE\s*(?:AUTOROUTE)*',
-            'VINCI': r'VINCI\s*(?:AUTOROUTES)*'
+            'VINCI': r'VINCI\s*(?:AUTOROUTES)*',
+            # Supermarkety
+            'ALBERT': r'ALBERT\s*(?:SUPERMARKET|HYPERMARKET)*',
+            'BILLA': r'BILLA',
+            'LIDL': r'LIDL',
+            'KAUFLAND': r'KAUFLAND',
+            'TESCO': r'TESCO\s*(?:STORES|EXPRESS)*',
+            'PENNY': r'PENNY\s*(?:MARKET)*'
         }
         
         for name, pattern in known_merchants.items():
@@ -248,14 +257,42 @@ def extract_merchant(text: str, language: str) -> str:
             if match:
                 return match.group(0).strip()
 
-        # Generický přístup: hledání prvního řádku, který není adresa, datum nebo čas
-        for line in lines[:5]:  # Omezení na prvních 5 řádků
+        # Vylepšený generický přístup
+        potential_merchants = []
+        for line in lines[:5]:  # Omezení na prvních 5 řádků pro relevanci
             line = line.strip()
-            if len(line) > 3 and not re.search(r'\d{2}[/\.]\d{2}[/\.]\d{4}', line):
-                # Vyloučení řádků, které vypadají jako adresa nebo jiné nepodstatné informace
-                if not any(keyword in line.lower() for keyword in ['ulice', 'street', 'tel', 'www', 'email']):
-                    return line
-        
+            if len(line) < 3 or len(line) > 50:  # Ignorování příliš krátkých/dlouhých řádků
+                continue
+
+            # Kontrola, zda řádek neobsahuje typické údaje, které nejsou obchodník
+            if any(keyword in line.lower() for keyword in [
+                'ulice', 'street', 'tel', 'www', 'email', 'datum', 'čas', 'číslo',
+                'pokladna', 'kasir', 'dph', 'ičo', 'dič'
+            ]):
+                continue
+
+            # Kontrola, zda řádek neobsahuje formát data
+            if re.search(r'\d{1,2}[/\.-]\d{1,2}[/\.-]\d{2,4}', line):
+                continue
+
+            # Přidání váhy řádku na základě charakteristik
+            score = 0
+            # Větší váha pro řádky psané velkými písmeny (časté pro název firmy)
+            if line.isupper() and ' ' in line:
+                score += 3
+            # Váha pro přítomnost právní formy
+            if re.search(r'\b(s\.r\.o|a\.s|SE|v\.o\.s)\b', line, re.IGNORECASE):
+                score += 5
+
+            # Základní skóre za to, že je to kandidát
+            score += 1
+            potential_merchants.append((line, score))
+
+        # Vrácení obchodníka s nejvyšším skóre
+        if potential_merchants:
+            best_merchant = max(potential_merchants, key=lambda item: item[1])
+            return best_merchant[0]
+
         return ''
         
     except Exception as e:
@@ -322,9 +359,8 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
         Celková částka nebo None pokud není nalezena
     """
     try:
-        # Vylepšené regulární výrazy pro hledání klíčových slov a částek
         total_keywords = get_words('total', language)
-        # Regex pro částky, který zvládá mezery jako oddělovače tisíců
+        # Regex pro částky, který zvládá mezery jako oddělovače tisíců a různé desetinné oddělovače
         amount_pattern = r'((?:\d{1,3}(?:\s\d{3})*|\d+)[,.]\d{2})'
         
         lines = text.split('\n')
@@ -332,29 +368,30 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
 
         # Hledání řádků s klíčovými slovy a extrakce čísel
         for line in lines:
-            # Převod na malá písmena pro porovnání bez rozlišení velikosti
             line_lower = line.lower()
-
-            # Kontrola, zda řádek obsahuje klíčové slovo
             if any(keyword.lower() in line_lower for keyword in total_keywords):
-                # Extrakce všech čísel z řádku
                 numbers = re.findall(amount_pattern, line)
                 if numbers:
-                    # Přidání poslední nalezené částky (obvykle celková)
-                    cleaned_number = numbers[-1].replace(' ', '').replace(',', '.')
-                    potential_amounts.append(float(cleaned_number))
+                    # Pokud jsou na řádku nalezena čísla, vezmeme nejvyšší
+                    line_amounts = [float(num.replace(' ', '').replace(',', '.')) for num in numbers]
+                    if line_amounts:
+                        potential_amounts.append(max(line_amounts))
 
-        # Pokud byly nalezeny potenciální částky, vrátíme nejvyšší
+        # Pokud byly nalezeny částky na řádcích s klíčovými slovy, vrátíme tu nejvyšší z nich
         if potential_amounts:
             return max(potential_amounts)
 
-        # Fallback: pokud nebyla nalezena klíčová slova, hledáme největší částku v celém textu
-        all_numbers = re.findall(amount_pattern, text)
-        if all_numbers:
-            # Převedeme všechny nalezené řetězce na čísla
-            all_amounts = [float(num.replace(' ', '').replace(',', '.')) for num in all_numbers]
-            # Vrátíme nejvyšší hodnotu, která je pravděpodobně celkovou částkou
-            return max(all_amounts)
+        # Vylepšený fallback: pokud nebyla nalezena klíčová slova, hledáme největší částku v posledních 5 řádcích
+        # To snižuje riziko záměny s cenou položky
+        last_lines = lines[-5:]
+        fallback_amounts = []
+        for line in last_lines:
+            numbers = re.findall(amount_pattern, line)
+            if numbers:
+                fallback_amounts.extend([float(num.replace(' ', '').replace(',', '.')) for num in numbers])
+
+        if fallback_amounts:
+            return max(fallback_amounts)
 
         return None
 
@@ -364,34 +401,44 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
 
 def extract_payment_method(text: str, language: str) -> str:
     """
-    Extrahuje způsob platby z textu účtenky.
+    Extrahuje způsob platby z textu účtenky s vyšší přesností.
     
     Args:
         text: Text účtenky
         language: Jazykový kód
         
     Returns:
-        Způsob platby ('Kartou' nebo 'Hotovost')
+        Způsob platby ('Kartou', 'Hotovost', nebo 'Neznámý')
     """
     try:
-        payment_words = get_words('payment_method', language)
+        # Prohledáváme jen posledních 10 řádků, kde se info o platbě obvykle nachází
+        lines = text.lower().strip().split('\n')
+        search_text = "\n".join(lines[-10:])
+
+        # Rozšířený seznam klíčových slov pro platbu kartou
+        card_keywords = [
+            'karta', 'kartou', 'card', 'carte', 'karte', 'kreditkarte',
+            'visa', 'mastercard', 'maestro', 'ec/mc', 'plat. kartou', 'cb'
+        ]
         
-        # Kontrola klíčových slov pro platbu kartou
-        card_words = ['karta', 'kartou', 'card', 'carte', 'karte']
-        if any(word.lower() in text.lower() for word in card_words):
+        # Rozšířený seznam klíčových slov pro hotovostní platbu
+        cash_keywords = [
+            'hotovost', 'hotově', 'cash', 'espèces', 'bargeld', 'bar', 'zaplaceno hotově'
+        ]
+
+        # Kontrola klíčových slov
+        if any(keyword in search_text for keyword in card_keywords):
             return 'Kartou'
             
-        # Kontrola klíčových slov pro hotovostní platbu
-        cash_words = ['hotovost', 'cash', 'espèces', 'bargeld']
-        if any(word.lower() in text.lower() for word in cash_words):
+        if any(keyword in search_text for keyword in cash_keywords):
             return 'Hotovost'
             
-        # Výchozí hodnota
-        return 'Hotovost'
+        # Pokud nic nenalezeno, vrátíme 'Neznámý'
+        return 'Neznámý'
         
     except Exception as e:
         logger.error(f"Chyba při extrakci způsobu platby: {str(e)}")
-        return 'Hotovost'
+        return 'Neznámý'
 
 def extract_receipt_number(text: str, language: str) -> Optional[str]:
     """
@@ -549,27 +596,36 @@ def extract_toll_data(text: str, language: str) -> Dict[str, Any]:
 
 def detect_currency(text: str, language: str) -> str:
     """
-    Detekuje měnu z textu účtenky.
+    Detekuje měnu z textu účtenky s prioritou na řádcích s celkovou částkou.
     
     Args:
         text: Text účtenky
         language: Jazykový kód
         
     Returns:
-        Detekovaná měna ('EUR' nebo 'CZK')
+        Detekovaná měna ('EUR', 'CZK')
     """
     try:
-        # Kontrola EUR
+        lines = text.lower().strip().split('\n')
+        total_keywords = get_words('total', language)
+
+        # Prioritní hledání: na řádcích s klíčovým slovem pro celkovou částku
+        for line in lines:
+            if any(keyword in line for keyword in total_keywords):
+                if re.search(r'€|eur|euro', line):
+                    return 'EUR'
+                if re.search(r'kč|czk|korun', line):
+                    return 'CZK'
+
+        # Fallback 1: hledání v celém textu (původní logika)
         if re.search(r'€|EUR|euro', text, re.IGNORECASE):
             return 'EUR'
-            
-        # Kontrola CZK
         if re.search(r'Kč|CZK|koruna', text, re.IGNORECASE):
             return 'CZK'
             
-        # Výchozí hodnota podle jazyka
+        # Fallback 2: výchozí hodnota podle jazyka
         return 'EUR' if language in ['fr', 'de'] else 'CZK'
         
     except Exception as e:
         logger.error(f"Chyba při detekci měny: {str(e)}")
-        return 'CZK'
+        return 'CZK' if language != 'fr' and language != 'de' else 'EUR'
