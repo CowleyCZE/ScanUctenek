@@ -21,10 +21,11 @@ CELL_MAPPINGS: Dict[Tuple[str, str, str], Tuple[str, str]] = {
     ('Mýtné', 'CZK', 'Kartou'): ('D20', 'D26'),
     ('Mýtné', 'CZK', 'Hotovost'): ('E20', 'E26'),
     
-    ('Bydlení', 'EUR', 'Kartou'): ('B27', 'B31'),
-    ('Bydlení', 'EUR', 'Hotovost'): ('C27', 'C31'),
-    ('Bydlení', 'CZK', 'Kartou'): ('D27', 'D31'),
-    ('Bydlení', 'CZK', 'Hotovost'): ('E27', 'E31'),
+    # OPRAVA: Změněno z "Bydlení" na "Ubytování"
+    ('Ubytování', 'EUR', 'Kartou'): ('B27', 'B31'),
+    ('Ubytování', 'EUR', 'Hotovost'): ('C27', 'C31'),
+    ('Ubytování', 'CZK', 'Kartou'): ('D27', 'D31'),
+    ('Ubytování', 'CZK', 'Hotovost'): ('E27', 'E31'),
     
     ('Ostatní', 'EUR', 'Kartou'): ('B32', 'B39'),
     ('Ostatní', 'EUR', 'Hotovost'): ('C32', 'C39'),
@@ -42,13 +43,21 @@ def standardize_purpose(purpose: str) -> str:
     Returns:
         Standardizovaný účel výdaje
     """
-    purpose = purpose.lower()
-    if purpose in ['pohonné hmoty', 'palivo', 'fuel', 'phm']:
+    if not purpose:
+        return 'Ostatní'
+    
+    purpose_lower = purpose.lower().strip()
+    
+    # Mapování variant na standardní názvy
+    if purpose_lower in ['pohonné hmoty', 'palivo', 'fuel', 'phm', 'benzin', 'nafta', 'diesel']:
         return 'Pohonné hmoty'
-    elif purpose in ['mýtné', 'mýto', 'toll']:
+    elif purpose_lower in ['mýtné', 'mýto', 'toll', 'péage', 'maut']:
         return 'Mýtné'
-    elif purpose in ['ubytování', 'accommodation', 'hotel']:
+    elif purpose_lower in ['ubytování', 'accommodation', 'hotel', 'hébergement', 'unterkunft', 'bydlení']:
         return 'Ubytování'
+    elif purpose_lower in ['stravování', 'food', 'restauration', 'verpflegung']:
+        return 'Stravování'
+    
     return 'Ostatní'
 
 def standardize_payment_method(payment_method: str) -> str:
@@ -61,9 +70,17 @@ def standardize_payment_method(payment_method: str) -> str:
     Returns:
         Standardizovaný způsob platby
     """
-    payment_method = payment_method.lower()
-    if payment_method in ['karta', 'kartou', 'card']:
+    if not payment_method:
+        return 'Hotovost'
+    
+    payment_method_lower = payment_method.lower().strip()
+    
+    if payment_method_lower in ['karta', 'kartou', 'card', 'carte', 'karte', 'visa', 'mastercard']:
         return 'Kartou'
+    elif payment_method_lower in ['hotovost', 'hotově', 'cash', 'espèces', 'bargeld', 'bar']:
+        return 'Hotovost'
+    
+    # Default na Hotovost pokud není rozpoznáno
     return 'Hotovost'
 
 def standardize_currency(currency: str) -> str:
@@ -76,8 +93,11 @@ def standardize_currency(currency: str) -> str:
     Returns:
         Standardizovaná měna
     """
-    currency = currency.upper()
-    return 'EUR' if currency == 'EUR' else 'CZK'
+    if not currency:
+        return 'CZK'
+    
+    currency_upper = currency.upper().strip()
+    return 'EUR' if currency_upper in ['EUR', 'EURO', '€'] else 'CZK'
 
 def get_cell_range(purpose: str, currency: str, payment_method: str) -> Optional[Tuple[str, str]]:
     """
@@ -96,6 +116,8 @@ def get_cell_range(purpose: str, currency: str, payment_method: str) -> Optional
         std_purpose = standardize_purpose(purpose)
         std_currency = standardize_currency(currency)
         std_payment = standardize_payment_method(payment_method)
+        
+        logger.info(f"Standardizováno: účel='{std_purpose}', měna='{std_currency}', platba='{std_payment}'")
         
         # Získání rozsahu buněk
         cell_range = CELL_MAPPINGS.get((std_purpose, std_currency, std_payment))
@@ -122,6 +144,7 @@ def find_next_empty_cell(worksheet, cell_range: Optional[Tuple[str, str]]) -> Op
         Reference na buňku (např. 'B12') nebo None pokud jsou všechny buňky zaplněny
     """
     if not cell_range:
+        logger.warning("Nebyl poskytnut žádný rozsah buněk")
         return None
     
     try:
@@ -142,12 +165,14 @@ def find_next_empty_cell(worksheet, cell_range: Optional[Tuple[str, str]]) -> Op
             cell = f"{start_col}{row}"
             try:
                 if worksheet[cell].value is None:
+                    logger.info(f"Nalezena prázdná buňka: {cell}")
                     return cell
             except Exception as e:
                 logger.error(f"Chyba při kontrole buňky {cell}: {str(e)}")
                 continue
         
         # Všechny buňky jsou zaplněny
+        logger.warning(f"Všechny buňky v rozsahu {start_cell}:{end_cell} jsou zaplněny")
         return None
         
     except Exception as e:
