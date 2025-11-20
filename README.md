@@ -31,6 +31,7 @@ ScanUctenek je open-source aplikace pro automatizované zpracování účtenek a
 - `assets/`, `attached_assets/` – Obrázky, loga, screenshoty.
 - `tests/` – Automatizované testy (pytest).
 
+
 ---
 
 ## Jak aplikace funguje
