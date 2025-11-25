@@ -95,24 +95,23 @@ def test_export_to_excel_multiple_receipts(valid_receipt_data):
     assert cell2.value == receipt2['total']
     assert receipt2['merchant'] in cell2.comment.text
 
-def test_export_to_excel_bug_ubytovani_vs_bydleni(valid_receipt_data):
+def test_export_to_excel_ubytovani_is_mapped(valid_receipt_data):
     """
-    Tento test odhaluje chybu, kdy 'Ubytování' není správně mapováno,
-    protože v CELL_MAPPINGS je 'Bydlení'.
+    Ověřuje, že 'Ubytování' je správně mapováno v CELL_MAPPINGS
+    a export zapisuje částku do očekávané buňky.
     """
     receipt = valid_receipt_data
-    receipt['purpose'] = 'Ubytování' # standardize_purpose vrací 'Ubytování'
+    receipt['purpose'] = 'Ubytování'
     receipt['currency'] = 'EUR'
     receipt['payment_method'] = 'Kartou'
 
-    # Očekáváme, že get_cell_range selže, protože 'Ubytování' není v mapování
+    # Očekáváme, že get_cell_range vrátí rozsah pro Ubytování/EUR/Kartou
     cell_range = get_cell_range(receipt['purpose'], receipt['currency'], receipt['payment_method'])
-    assert cell_range is None
+    assert cell_range is not None
 
-    # V důsledku toho by export neměl pro tuto účtenku nic zapsat
     excel_bytes = export_to_excel([receipt], {})
     workbook = openpyxl.load_workbook(excel_bytes)
     sheet = workbook.active
 
-    # Očekávaná buňka B27 by měla být prázdná
-    assert sheet['B27'].value is None
+    # Očekávaná startovní buňka pro Ubytování/EUR/Kartou je B27
+    assert sheet['B27'].value == receipt['total']

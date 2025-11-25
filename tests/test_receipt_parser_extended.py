@@ -111,6 +111,35 @@ def test_extract_total_amount_extended():
     assert extract_total_amount(text3, 'cs') == 500.00
     assert extract_total_amount("žádná částka", 'cs') is None
 
+def test_extract_total_amount_french_variants():
+    text_ttc = "PRIX TTC euros : 9,80"
+    assert extract_total_amount(text_ttc, 'fr') == 9.80
+
+    text_tarif_ttc = "TARIF T.T.C. : 15,40 €"
+    assert extract_total_amount(text_tarif_ttc, 'fr') == 15.40
+
+    text_paye = "PAYE EUR 10,77"
+    assert extract_total_amount(text_paye, 'fr') == 10.77
+
+    text_montant_net = "MONTANT NET 150.00 EUR"
+    assert extract_total_amount(text_montant_net, 'fr') == 150.00
+
+    text_net_a_payer = "NET A PAYER: 150,00 €"
+    assert extract_total_amount(text_net_a_payer, 'fr') == 150.00
+
+def test_extract_date_dd_mm_yy_fr():
+    text = "LE 09-11-23 A 17-38-49"
+    d = extract_date(text, 'fr')
+    assert d.year == 2023 and d.month == 11 and d.day == 9
+
+def test_extract_receipt_number_fr():
+    text = "No: 018C053316051800456"
+    assert extract_receipt_number(text, 'fr') == "018C053316051800456"
+
+def test_detect_currency_prefers_eur_globally():
+    text = "Station AVIA\nMontant Net 150.00 EUR\nPAYE"
+    assert detect_currency(text, 'fr') == 'EUR'
+
 def test_extract_merchant_extended():
     text1 = "Vítejte v obchodě Můj Obchod s.r.o."
     text2 = "TOTALENERGIES STANICE"

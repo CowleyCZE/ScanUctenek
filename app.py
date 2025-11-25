@@ -13,6 +13,7 @@ import os
 import requests
 from typing import Dict, List, Any, Optional, Tuple, Union
 from utils.ocr_utils import perform_ocr, preprocess_image
+from utils.ocr_utils import auto_ocr_optimize
 from utils.receipt_parser import extract_receipt_info, detect_language
 from utils.excel_export import export_to_excel
 from localization.translations import get_text
@@ -92,6 +93,9 @@ def initialize_session_state() -> None:
         st.session_state.image_source = 'upload'
     if 'preview_image' not in st.session_state:
         st.session_state.preview_image = None
+    if 'tesseract_cmd' not in st.session_state:
+        st.session_state.tesseract_cmd = os.environ.get('TESSERACT_CMD', r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+        os.environ['TESSERACT_CMD'] = st.session_state.tesseract_cmd
 
 def get_svg_content() -> str:
     """
@@ -137,21 +141,30 @@ def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
             image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
             
         # Předzpracování obrázku
+        os.environ['OCR_PROFILE'] = os.environ.get('OCR_PROFILE', 'default')
         processed_image = preprocess_image(image_np)
         
         if processed_image is None:
             logger.error("Předzpracování obrázku selhalo")
             return "", {}
             
-        # Provedení OCR s výchozím jazykem
-        extracted_text, structured_data = perform_ocr(processed_image, 'ces')
+        # Provedení OCR s nastaveným/override jazykem
+        override = os.environ.get('OCR_LANG_OVERRIDE', 'auto')
+        lang_map = {'cs': 'ces', 'fr': 'fra', 'de': 'deu'}
+        initial_lang = lang_map.get(override, 'ces')
+        if initial_lang == 'fra':
+            os.environ['OCR_PROFILE'] = 'dotmatrix'
+        extracted_text, structured_data = perform_ocr(processed_image, initial_lang)
         
         # Detekce jazyka z extrahovaného textu
         detected_language = detect_language(extracted_text)
         lang_code = APP_CONFIG['ocr_language_codes'].get(detected_language, 'ces')
+        # Nastavení profilu pro francouzské účtenky (jehličkový/termo tisk)
+        if lang_code == 'fra':
+            os.environ['OCR_PROFILE'] = 'dotmatrix'
         
-        # Pokud byl detekován jiný jazyk, provedeme OCR znovu
-        if lang_code != 'ces':
+        # Pokud je override auto a byl detekován jiný jazyk, provedeme OCR znovu
+        if override == 'auto' and lang_code != initial_lang:
             extracted_text, structured_data = perform_ocr(processed_image, lang_code)
         
         return extracted_text, structured_data
@@ -252,12 +265,50 @@ def process_scan_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
             if 'image_bytes' in st.session_state and st.session_state.image_bytes:
                 with st.spinner('Zpracovávám obrázek...'):
                     image = Image.open(io.BytesIO(st.session_state.image_bytes))
+                    if 'ocr_params' in st.session_state:
+                        used = st.session_state.ocr_params
+                        os.environ['OCR_PSM'] = str(used.get('psm', os.environ.get('OCR_PSM','6')))
+                        os.environ['OCR_SCALE'] = str(used.get('scale', os.environ.get('OCR_SCALE','1.0')))
+                        lang_map_rev = {'ces': 'cs', 'fra': 'fr', 'deu': 'de'}
+                        os.environ['OCR_LANG_OVERRIDE'] = lang_map_rev.get(used.get('lang','ces'), os.environ.get('OCR_LANG_OVERRIDE','auto'))
+                        logger.info(f"Používám uložené OCR parametry: {used}")
                     extracted_text, _ = process_receipt_image(image)
+                    auto_enabled = os.environ.get('OCR_MULTIPASS', '0') in ['1', 'true', 'yes']
+                    if auto_enabled:
+                        override = os.environ.get('OCR_LANG_OVERRIDE', 'auto')
+                        lang_map = {'cs': 'ces', 'fr': 'fra', 'de': 'deu'}
+                        init_lang = lang_map.get(override, 'ces')
+                        try:
+                            det_lang = detect_language(extracted_text)
+                            init_lang = lang_map.get(det_lang, init_lang)
+                        except Exception:
+                            pass
+                        logger.info(f"Spouštím auto OCR optimalizaci: override={override}, init_lang={init_lang}, PSM={os.environ.get('OCR_PSM')}, scale={os.environ.get('OCR_SCALE')}")
+                        if init_lang == 'fra':
+                            os.environ['OCR_PROFILE'] = 'dotmatrix'
+                        optimized_text, used = auto_ocr_optimize(preprocess_image(np.array(image)), init_lang)
+                        if optimized_text.strip():
+                            extracted_text = optimized_text
+                            os.environ['OCR_PSM'] = str(used['psm'])
+                            os.environ['OCR_SCALE'] = str(used['scale'])
+                            st.session_state.ocr_params = used
+                            logger.info(f"Auto OCR vybralo parametry: {used}")
+                            if 'oem' in used:
+                                os.environ['OCR_OEM'] = str(used['oem'])
                 
                 if extracted_text:
                     receipt_info = extract_receipt_info(extracted_text)
                     
                     st.subheader("Extrahované informace")
+                    with st.expander("Zobrazení OCR textu"):
+                        st.text(extracted_text)
+                        used_lang = os.environ.get('OCR_LANG_OVERRIDE','auto')
+                        if 'ocr_params' in st.session_state:
+                            rev = {'ces':'cs','fra':'fr','deu':'de'}
+                            used_lang = rev.get(st.session_state.ocr_params.get('lang', used_lang), used_lang)
+                        st.caption(f"Použité OCR: PSM={os.environ.get('OCR_PSM','')}, scale={os.environ.get('OCR_SCALE','')}, lang={used_lang}")
+                        if os.environ.get('OCR_MULTIPASS','0') in ['1','true','yes']:
+                            st.caption("Multipass: aktivní, vyzkoušené varianty předzpracování a jazyky")
                     with st.form("receipt_form"):
                         merchant = st.text_input("Obchodník", value=receipt_info.get('merchant', ''))
                         date = st.date_input("Datum", value=receipt_info.get('date', datetime.now()))
@@ -399,12 +450,15 @@ def process_settings_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     with tab:
         st.subheader("Nastavení")
         
-        # Nastavení jazyka
+        # Nastavení jazyka (UI)
         language = st.selectbox(
             "Jazyk",
             options=list(APP_CONFIG['supported_languages'].keys()),
             format_func=lambda x: APP_CONFIG['supported_languages'][x]
         )
+        # OCR jazykový override
+        lang_override = st.selectbox("OCR jazyk", options=['auto', 'cs', 'fr', 'de'], index=0)
+        os.environ['OCR_LANG_OVERRIDE'] = lang_override
         
         # Nastavení OCR
         ocr_provider = st.radio(
@@ -416,6 +470,38 @@ def process_settings_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
         if ocr_provider != st.session_state.ocr_provider:
             st.session_state.ocr_provider = ocr_provider
             st.rerun()
+
+        tesseract_cmd_input = st.text_input("Cesta k Tesseract OCR", value=st.session_state.tesseract_cmd)
+        if tesseract_cmd_input != st.session_state.tesseract_cmd:
+            st.session_state.tesseract_cmd = tesseract_cmd_input
+            if tesseract_cmd_input:
+                os.environ['TESSERACT_CMD'] = tesseract_cmd_input
+            st.rerun()
+        if st.session_state.tesseract_cmd:
+            if os.path.exists(st.session_state.tesseract_cmd):
+                st.success("Cesta k Tesseract je platná")
+            else:
+                st.error("Cesta k Tesseract není platná")
+
+        st.subheader("OCR parametry")
+        psm_value = st.selectbox("PSM (Page Segmentation Mode)", options=[6, 4, 11], index=0)
+        conf_thr = st.slider("Confidence threshold", min_value=0, max_value=100, value=40)
+        if os.environ.get('OCR_PSM') != str(psm_value) or os.environ.get('OCR_CONF_THRESH') != str(conf_thr):
+            os.environ['OCR_PSM'] = str(psm_value)
+            os.environ['OCR_CONF_THRESH'] = str(conf_thr)
+
+        scale_value = st.select_slider("Zvětšení (scale)", options=[1.0, 1.5, 2.0], value=1.0)
+        deskew_enable = st.checkbox("Odskevení (narovnání textu)", value=True)
+        multipass_enable = st.checkbox("Multipass OCR (zkusit více jazyků/PSM)", value=True)
+        os.environ['OCR_SCALE'] = str(scale_value)
+        os.environ['OCR_DESKEW'] = '1' if deskew_enable else '0'
+        os.environ['OCR_MULTIPASS'] = '1' if multipass_enable else '0'
+        log_level = st.selectbox("Úroveň logování", options=['INFO', 'DEBUG', 'WARNING'], index=0)
+        os.environ['LOG_LEVEL'] = log_level
+        try:
+            logger.setLevel(getattr(logging, log_level))
+        except Exception:
+            pass
 
         # Správa kategorií
         st.subheader("Správa kategorií")

@@ -27,9 +27,9 @@ PATTERNS = {
         'de': r'(?:GESAMT|TOTAL|SUMME)[\s:]*[€]?\s*(\d+[.,]\d{2})'
     },
     'receipt_number': {
-        'cs': r'(?:č\.|číslo|čís\.)\s*:?\s*(\d+)',
-        'fr': r'(?:n°|no\.|num\.)\s*:?\s*(\d+)',
-        'de': r'(?:nr\.|nummer)\s*:?\s*(\d+)'
+        'cs': r'(?:č\.|číslo\s*účtenky|čís\.)\s*:?\s*([A-Za-z0-9]+)',
+        'fr': r'(?:n°|no\.|num\.)\s*:?\s*([A-Za-z0-9]+)',
+        'de': r'(?:nr\.|nummer)\s*:?\s*([A-Za-z0-9]+)'
     }
 }
 
@@ -78,7 +78,10 @@ def detect_language(text: str) -> str:
                 (r'[áčďéěíňóřšťúůýž]', 2)
             ],
             'fr': [
-                (r'n°|tva|ttc|eur|montant|prix', 2),
+                (r'n°|tva|ttc|eur|montant|prix|autoroutes|paiement|carte|sortie|entrée|entree|euros|€', 2),
+                (r'carte\s+bancaire', 3),
+                (r'montant\s+net', 2),
+                (r'station\s+avia', 2),
                 (r'[àâçèéêëîïôûùü]', 2)
             ],
             'de': [
@@ -243,13 +246,15 @@ def extract_merchant(text: str, language: str) -> str:
             'SANEF': r'SANEF\s*(?:PEAGE)*',
             'COFIROUTE': r'COFIROUTE\s*(?:AUTOROUTE)*',
             'VINCI': r'VINCI\s*(?:AUTOROUTES)*',
+            'COFIROUTE': r'COFIROUTE',
             # Supermarkety
             'ALBERT': r'ALBERT\s*(?:SUPERMARKET|HYPERMARKET)*',
             'BILLA': r'BILLA',
             'LIDL': r'LIDL',
             'KAUFLAND': r'KAUFLAND',
             'TESCO': r'TESCO\s*(?:STORES|EXPRESS)*',
-            'PENNY': r'PENNY\s*(?:MARKET)*'
+            'PENNY': r'PENNY\s*(?:MARKET)*',
+            'HUBO': r'HUBO\s*(?:EUPEN)*'
         }
         
         for name, pattern in known_merchants.items():
@@ -257,11 +262,39 @@ def extract_merchant(text: str, language: str) -> str:
             if match:
                 return match.group(0).strip()
 
+        normalized = re.sub(r'[^A-Z]', '', text.upper())
+        if 'AVIA' in normalized:
+            return 'AVIA'
+
+        try:
+            import difflib
+            top_lines = [l.strip() for l in lines[:8] if l.strip()]
+            tokens = []
+            for li, l in enumerate(top_lines):
+                for t in re.findall(r'[A-Z]{3,12}', l.upper()):
+                    tokens.append((t, li))
+            brand_keys = list(known_merchants.keys())
+            best = ('', -1.0, 99)
+            for token, li in tokens:
+                for bk in brand_keys:
+                    r = difflib.SequenceMatcher(None, token, bk).ratio()
+                    score = r - (li * 0.02)
+                    if score > best[1]:
+                        best = (bk, score, li)
+            if best[0] and best[1] >= 0.7:
+                return best[0]
+            if re.search(r'a\s*v\s*i\s*a', '\n'.join(top_lines).lower()):
+                return 'AVIA'
+        except Exception:
+            pass
+
         # Vylepšený generický přístup
         potential_merchants = []
-        for line in lines[:5]:  # Omezení na prvních 5 řádků pro relevanci
+        for line in lines[:5]:
             line = line.strip()
-            if len(line) < 3 or len(line) > 50:  # Ignorování příliš krátkých/dlouhých řádků
+            if len(line) < 3 or len(line) > 50:
+                continue
+            if re.fullmatch(r'\d{3,}', line):
                 continue
 
             # Kontrola, zda řádek neobsahuje typické údaje, které nejsou obchodník
@@ -313,8 +346,8 @@ def extract_date(text: str, language: str) -> Optional[datetime]:
     try:
         # Rozšířené vzory pro různé formáty data
         date_patterns = [
-            r'(\d{1,2})[\.,/](\d{1,2})[\.,/](\d{2,4})',  # dd.mm.yyyy, dd/mm/yy
-            r'(\d{4})-(\d{2})-(\d{2})'  # yyyy-mm-dd
+            r'(\d{4})-(\d{2})-(\d{2})',  # yyyy-mm-dd (prioritní)
+            r'(\d{1,2})[\.,/\-](\d{1,2})[\.,/\-](\d{2,4})'  # dd.mm.yyyy, dd/mm/yy, dd-mm-yy
         ]
         
         for pattern in date_patterns:
@@ -360,16 +393,34 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
     """
     try:
         total_keywords = get_words('total', language)
+        extra_keywords = [
+            'ttc', 't.t.c', 'prix ttc', 'tarif ttc', 'tarif t.t.c',
+            'payé', 'paye', 'montant reel', 'montant réel',
+            'montant net', 'net a payer', 'net à payer', 'montant total', 'total'
+        ]
         # Regex pro částky, který zvládá mezery jako oddělovače tisíců a různé desetinné oddělovače
         amount_pattern = r'((?:\d{1,3}(?:\s\d{3})*|\d+)[,.]\d{2})'
         
         lines = text.split('\n')
+        eur_pat = r'(€|e\s*u\s*r|euros?)'
         potential_amounts = []
+
+        # Preferenční zachycení finálních částek na typických FR řádcích
+        for line in lines:
+            m = re.search(r'(montant\s+net|net\s+a\s+payer|net\s+à\s+payer|montant\s+total|total)\s*[:\-]?\s*((?:\d{1,3}(?:\s\d{3})*|\d+)[,.]\d{2})\s*' + eur_pat + '?', line, re.IGNORECASE)
+            if m:
+                return float(m.group(2).replace(' ', '').replace(',', '.'))
 
         # Hledání řádků s klíčovými slovy a extrakce čísel
         for line in lines:
             line_lower = line.lower()
-            if any(keyword.lower() in line_lower for keyword in total_keywords):
+            if any(keyword.lower() in line_lower for keyword in total_keywords + extra_keywords):
+                # Vyhnout se řádkům s procenty bez měny (např. 'TVA 20,00%')
+                if '%' in line_lower and ('€' not in line_lower and 'eur' not in line_lower and 'kč' not in line_lower):
+                    continue
+                # Vyhnout se řádkům typickým pro položky paliva (množství v litrech, jednotková cena)
+                if re.search(r'\b(?:l|litre|litres)\b', line_lower) or 'prix unit' in line_lower or 'price/l' in line_lower or 'cena/l' in line_lower:
+                    continue
                 numbers = re.findall(amount_pattern, line)
                 if numbers:
                     # Pokud jsou na řádku nalezena čísla, vezmeme nejvyšší
@@ -381,17 +432,31 @@ def extract_total_amount(text: str, language: str) -> Optional[float]:
         if potential_amounts:
             return max(potential_amounts)
 
-        # Vylepšený fallback: pokud nebyla nalezena klíčová slova, hledáme největší částku v posledních 5 řádcích
-        # To snižuje riziko záměny s cenou položky
-        last_lines = lines[-5:]
-        fallback_amounts = []
+        # Vylepšený fallback: nejprve z posledních 8 řádků s měnou, pokud nic, tak z posledních 8 řádků obecně
+        last_lines = lines[-8:]
+        amounts_with_currency = []
+        amounts_any = []
+        eur_pat = r'(€|e\s*u\s*r|euros?)'
+        czk_pat = r'(k\s*č|c\s*z\s*k|czk|korun[a-y]?)'
         for line in last_lines:
+            # ignoruj čisté procentní řádky bez měny (např. 'TVA 20,00%')
+            if '%' in line.lower() and not re.search(f'{eur_pat}|{czk_pat}', line, re.IGNORECASE):
+                continue
+            # ignoruj řádky typické pro položky paliva
+            if re.search(r'\b(?:l|litre|litres)\b', line.lower()) or 'prix unit' in line.lower() or 'price/l' in line.lower() or 'cena/l' in line.lower():
+                continue
             numbers = re.findall(amount_pattern, line)
             if numbers:
-                fallback_amounts.extend([float(num.replace(' ', '').replace(',', '.')) for num in numbers])
+                parsed = [float(num.replace(' ', '').replace(',', '.')) for num in numbers]
+                if re.search(f'{eur_pat}|{czk_pat}', line, re.IGNORECASE):
+                    amounts_with_currency.extend(parsed)
+                else:
+                    amounts_any.extend(parsed)
 
-        if fallback_amounts:
-            return max(fallback_amounts)
+        if amounts_with_currency:
+            return max(amounts_with_currency)
+        if amounts_any:
+            return max(amounts_any)
 
         return None
 
@@ -452,13 +517,20 @@ def extract_receipt_number(text: str, language: str) -> Optional[str]:
         Číslo účtenky nebo None pokud není nalezeno
     """
     try:
-        lines = text.split('\n')
-        for i, line in enumerate(lines):
-            if "číslo účtenky" in line.lower():
-                # Extract the text after the colon
-                parts = line.split(':')
-                if len(parts) > 1:
-                    return parts[1].strip()
+        pattern = PATTERNS['receipt_number'].get(language, PATTERNS['receipt_number']['cs'])
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            return m.group(1)
+        alt_patterns = [
+            r'no\.?\s*[:]?\s*([A-Za-z0-9]+)',
+            r'n°\s*[:]?\s*([A-Za-z0-9]+)',
+            r'num[eé]ro\s*[:]?\s*([A-Za-z0-9]+)',
+            r'no\.\s*ticket\s*[:]?\s*([A-Za-z0-9]+)'
+        ]
+        for p in alt_patterns:
+            mm = re.search(p, text, re.IGNORECASE)
+            if mm:
+                return mm.group(1)
         return None
         
     except Exception as e:
@@ -508,7 +580,7 @@ def extract_fuel_data(text: str, language: str) -> Dict[str, Any]:
         # Extrakce ceny za litr - vylepšená logika
         for line in text.split('\n'):
             # Hledání klíčových slov pro cenu za litr
-            if any(keyword in line.lower() for keyword in ['cena/l', 'price/l', 'prix/l']):
+            if any(keyword in line.lower() for keyword in ['cena/l', 'price/l', 'prix/l', 'prix unit']):
                 price_match = re.search(r'(\d+[.,]\d+)', line)
                 if price_match:
                     try:
@@ -606,24 +678,30 @@ def detect_currency(text: str, language: str) -> str:
         Detekovaná měna ('EUR', 'CZK')
     """
     try:
+        # Nejvyšší priorita: měna na řádku s celkovou částkou
         lines = text.lower().strip().split('\n')
         total_keywords = get_words('total', language)
-
-        # Prioritní hledání: na řádcích s klíčovým slovem pro celkovou částku
+        extended_total_keywords = [
+            'celkem', 'k úhradě', 'total', 'montant total', 'montant net',
+            'net a payer', 'net à payer', 'tarif ttc', 'prix ttc', 'summe', 'gesamt'
+        ]
+        eur_pat = r'(€|e\s*u\s*r|euros?)'
+        czk_pat = r'(k\s*č|c\s*z\s*k|czk|korun[a-y]?)'
+        search_keys = set([w.lower() for w in total_keywords] + extended_total_keywords)
         for line in lines:
-            if any(keyword in line for keyword in total_keywords):
-                if re.search(r'€|eur|euro', line):
+            if any(key in line for key in search_keys):
+                if re.search(eur_pat, line, re.IGNORECASE):
                     return 'EUR'
-                if re.search(r'kč|czk|korun', line):
+                if re.search(czk_pat, line, re.IGNORECASE):
                     return 'CZK'
 
-        # Fallback 1: hledání v celém textu (původní logika)
-        if re.search(r'€|EUR|euro', text, re.IGNORECASE):
+        # Fallback: globální hledání v celém textu
+        if re.search(eur_pat, text, re.IGNORECASE):
             return 'EUR'
-        if re.search(r'Kč|CZK|koruna', text, re.IGNORECASE):
+        if re.search(czk_pat, text, re.IGNORECASE):
             return 'CZK'
-            
-        # Fallback 2: výchozí hodnota podle jazyka
+
+        # Výchozí hodnota podle jazyka
         return 'EUR' if language in ['fr', 'de'] else 'CZK'
         
     except Exception as e:

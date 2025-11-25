@@ -1,19 +1,19 @@
 # Core application
 streamlit==1.43.2
-pandas==2.2.0
+pandas
 
 # Image processing
 opencv-python-headless==4.11.0.86
 Pillow==11.3.0
 
 # OCR
-pytesseract==0.3.10
+pytesseract>=0.3.13
 
 # Excel support
 openpyxl==3.1.5
 
 # Math/Science
-numpy==1.26.1
+numpy
 
 # Testing
 pytest==7.4.2
