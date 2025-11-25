@@ -12,6 +12,7 @@ import numpy as np
 import os
 import requests
 from typing import Dict, List, Any, Optional, Tuple, Union
+from utils.exceptions import OcrError
 from utils.ocr_utils import perform_ocr, preprocess_image
 from utils.ocr_utils import auto_ocr_optimize
 from utils.receipt_parser import extract_receipt_info, detect_language
@@ -31,28 +32,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Konfigurace aplikace
-APP_CONFIG = {
-    'supported_languages': {
-        'cs': 'Čeština',
-        'fr': 'Francouzština',
-        'de': 'Němčina'
-    },
-    'ocr_language_codes': {
-        'cs': 'ces',
-        'fr': 'fra',
-        'de': 'deu'
-    },
-    'default_currency': 'CZK',
-    'supported_currencies': ['CZK', 'EUR'],
-    'receipt_categories': {
-        'fuel': 'Pohonné hmoty',
-        'toll': 'Mýtné',
-        'accommodation': 'Ubytování',
-        'food': 'Stravování',
-        'other': 'Ostatní'
-    }
-}
+from config import APP_CONFIG
+
 
 def initialize_session_state() -> None:
     """
@@ -125,13 +106,11 @@ def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
     try:
         # Kontrola, zda je obrázek validní PIL Image
         if not isinstance(image, Image.Image):
-            logger.error("Vstupní obrázek není PIL Image")
-            return "", {}
+            raise OcrError("Vstupní obrázek není platný.")
             
         # Kontrola, zda má obrázek platné rozměry
         if image.size[0] == 0 or image.size[1] == 0:
-            logger.error("Neplatný obrázek - nulová velikost")
-            return "", {}
+            raise OcrError("Neplatný obrázek - nulová velikost.")
             
         # Převod na numpy array pro předzpracování
         image_np = np.array(image)
@@ -145,8 +124,7 @@ def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
         processed_image = preprocess_image(image_np)
         
         if processed_image is None:
-            logger.error("Předzpracování obrázku selhalo")
-            return "", {}
+            raise OcrError("Předzpracování obrázku selhalo.")
             
         # Provedení OCR s nastaveným/override jazykem
         override = os.environ.get('OCR_LANG_OVERRIDE', 'auto')
@@ -169,9 +147,12 @@ def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
         
         return extracted_text, structured_data
         
-    except Exception as e:
+    except OcrError as e:
         logger.error(f"Chyba při zpracování obrázku: {str(e)}")
-        return "", {}
+        raise
+    except Exception as e:
+        logger.error(f"Neočekávaná chyba při zpracování obrázku: {str(e)}")
+        raise OcrError("Došlo k neočekávané chybě při zpracování obrázku.")
 
 def save_receipt(receipt_data: Dict[str, Any]) -> bool:
     """
@@ -317,7 +298,6 @@ def process_scan_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
                                                 index=APP_CONFIG['supported_currencies'].index(receipt_info.get('currency', APP_CONFIG['default_currency'])))
                         payment_method = st.selectbox("Způsob platby", options=['Kartou', 'Hotovost'], index=0)
                         purpose = st.selectbox("Účel", options=['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní'], index=0)
-
                         if st.form_submit_button("Uložit účtenku"):
                             receipt_data = {
                                 'merchant': merchant, 'date': date, 'total': total, 'currency': currency,
@@ -334,6 +314,23 @@ def process_scan_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
                 else:
                     st.warning("Nepodařilo se extrahovat žádný text. Zkuste prosím jiný obrázek.")
 
+def get_filtered_receipts(category: str) -> List[Dict[str, Any]]:
+    """
+    Filtruje účtenky podle kategorie.
+    
+    Args:
+        category: Kategorie pro filtrování
+        
+    Returns:
+        Seznam filtrovaných účtenek
+    """
+    if not st.session_state.receipts:
+        return []
+    return [
+        r for r in st.session_state.receipts 
+        if r.get('category') == category
+    ]
+
 def process_history_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     """
     Zpracuje záložku s historií účtenek.
@@ -344,18 +341,10 @@ def process_history_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     with tab:
         st.subheader("Historie účtenek")
         
-        if not st.session_state.receipts:
-            st.info("Zatím nejsou uloženy žádné účtenky")
-            return
-            
-        # Filtrování podle kategorie
-        filtered_receipts = [
-            r for r in st.session_state.receipts 
-            if r.get('category') == st.session_state.selected_category
-        ]
+        filtered_receipts = get_filtered_receipts(st.session_state.selected_category)
         
         if not filtered_receipts:
-            st.info("V této kategorii nejsou žádné účtenky")
+            st.info("V této kategorii nejsou žádné účtenky.")
             return
             
         # Zobrazení účtenek
@@ -380,11 +369,26 @@ def process_history_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
                     
                 with col3:
                     if st.button("Smazat", key=f"delete_{i}"):
-                        if delete_receipt(i):
-                            st.success("Účtenka byla smazána")
-                            st.rerun()
-                        else:
-                            st.error("Chyba při mazání účtenky")
+                        st.session_state.receipt_to_delete = i
+                        st.rerun()
+
+        if 'receipt_to_delete' in st.session_state:
+            receipt_index = st.session_state.receipt_to_delete
+            st.warning(f"Opravdu chcete smazat účtenku? Tato akce je nevratná.")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Ano, smazat"):
+                    if delete_receipt(receipt_index):
+                        st.success("Účtenka byla smazána")
+                        del st.session_state.receipt_to_delete
+                        st.rerun()
+                    else:
+                        st.error("Chyba při mazání účtenky")
+            with col2:
+                if st.button("Zrušit"):
+                    del st.session_state.receipt_to_delete
+                    st.rerun()
+
 
 def process_export_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     """
@@ -396,18 +400,10 @@ def process_export_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     with tab:
         st.subheader("Export účtenek")
         
-        if not st.session_state.receipts:
-            st.info("Zatím nejsou uloženy žádné účtenky")
-            return
-            
-        # Filtrování podle kategorie
-        filtered_receipts = [
-            r for r in st.session_state.receipts 
-            if r.get('category') == st.session_state.selected_category
-        ]
+        filtered_receipts = get_filtered_receipts(st.session_state.selected_category)
         
         if not filtered_receipts:
-            st.info("V této kategorii nejsou žádné účtenky")
+            st.info("V této kategorii nejsou žádné účtenky.")
             return
             
         # Export do Excelu
@@ -439,6 +435,7 @@ def process_export_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
                 file_name=f"receipts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 def process_settings_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
     """

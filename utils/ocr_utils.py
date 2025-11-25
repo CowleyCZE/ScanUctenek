@@ -3,17 +3,17 @@ OCR utility for receipt processing
 Handles image preprocessing and OCR operations
 """
 
-import cv2
-import numpy as np
-import pytesseract
-from PIL import Image
-import os
-import re
-import tempfile
-import requests
+from utils.exceptions import OcrError
 import logging
 from typing import Tuple, Dict, List, Optional, Any, Union
 from functools import lru_cache
+import os
+import re
+import tempfile
+import numpy as np
+import cv2
+from PIL import Image
+import pytesseract
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -80,8 +80,7 @@ def preprocess_image(image: Union[np.ndarray, Image.Image]) -> np.ndarray:
             
         # Kontrola typu vstupu
         if not isinstance(image, np.ndarray):
-            logger.error("Vstupní obrázek není numpy array")
-            return image
+            raise OcrError("Vstupní obrázek není numpy array")
             
         # Převod na uint8 pokud není
         if image.dtype != np.uint8:
@@ -98,8 +97,7 @@ def preprocess_image(image: Union[np.ndarray, Image.Image]) -> np.ndarray:
             
         # Kontrola, že obrázek je ve stupních šedi
         if len(image.shape) != 2:
-            logger.error("Nepodařilo se převést obrázek na stupně šedi")
-            return image
+            raise OcrError("Nepodařilo se převést obrázek na stupně šedi")
             
         # Upscale
         try:
@@ -147,8 +145,7 @@ def preprocess_image(image: Union[np.ndarray, Image.Image]) -> np.ndarray:
 
         return result
     except Exception as e:
-        logger.error(f"Chyba při předzpracování obrázku: {str(e)}")
-        return image
+        raise OcrError(f"Chyba při předzpracování obrázku: {str(e)}")
 
 def preprocess_variants(image: Union[np.ndarray, Image.Image]) -> List[np.ndarray]:
     try:
@@ -243,7 +240,7 @@ def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', oc
     """
     try:
         if image is None:
-            raise ValueError("Vstupní obrázek je prázdný")
+            return "", {}
             
         # Nastavení cesty k Tesseractu
         try:
@@ -266,16 +263,16 @@ def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', oc
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
         elif not isinstance(image, Image.Image):
-            raise ValueError("Nepodporovaný formát obrázku")
+            raise OcrError("Nepodporovaný formát obrázku")
             
         # Kontrola, zda je obrázek validní
         if image.size[0] == 0 or image.size[1] == 0:
-            raise ValueError("Neplatný obrázek - nulová velikost")
+            raise OcrError("Neplatný obrázek - nulová velikost")
             
         # Předzpracování obrázku
         processed_image = preprocess_image(image)
         if processed_image is None:
-            raise ValueError("Předzpracování obrázku selhalo")
+            raise OcrError("Předzpracování obrázku selhalo")
             
         # Převod zpět na PIL Image pro OCR
         pil_image = Image.fromarray(processed_image)
@@ -392,8 +389,7 @@ def perform_ocr(image: Union[np.ndarray, Image.Image], language: str = 'ces', oc
             return "", {}
             
     except Exception as e:
-        logger.error(f"OCR chyba: {str(e)}")
-        return "", {}
+        raise OcrError(f"OCR chyba: {str(e)}")
 
 def extract_text_blocks(image: np.ndarray, language: str = 'ces') -> List[Dict[str, Any]]:
     """
@@ -480,7 +476,6 @@ def extract_text_blocks(image: np.ndarray, language: str = 'ces') -> List[Dict[s
                     os.unlink(tmp_filename)
                     
         return []
-
 def _evaluate_text_quality(text: str, language: str) -> float:
     try:
         total = max(1, len(text))
