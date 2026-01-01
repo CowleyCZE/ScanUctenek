@@ -57,11 +57,11 @@ def validate_receipt(receipt: Dict[str, Any]) -> bool:
             logger.error("Neplatná měna")
             return False
             
-        if receipt['payment_method'] not in ['Kartou', 'Hotovost']:
+        if receipt['payment_method'] not in ['Kartou', 'Hotovost', 'Neznámý']:
             logger.error("Neplatný způsob platby")
             return False
 
-        if receipt['purpose'] not in ['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní']:
+        if receipt['purpose'] not in ['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Stravování', 'Ostatní']:
             logger.error("Neplatný účel")
             return False
             

@@ -526,29 +526,29 @@ def auto_ocr_optimize(image: Union[np.ndarray, Image.Image], initial_lang: str, 
                 for psm in psms:
                     for scale in scales:
                         for oem in oems:
-                            key = f"{lang}-{psm}-{scale}"
+                            key = f"{lang}-{psm}-{scale}-{oem}"
                             if key in tried:
                                 continue
                             tried.add(key)
                             iters += 1
                             if iters > max_iters:
                                 break
-                        os.environ['OCR_PSM'] = str(psm)
-                        os.environ['OCR_SCALE'] = str(scale)
-                        os.environ['OCR_OEM'] = str(oem)
-                        text, _ = perform_ocr(processed, lang)
-                        score = _evaluate_text_quality(text, lang)
-                        logger.debug(f"AutoOCR: variant={v_idx}, lang={lang}, psm={psm}, scale={scale}, score={score:.3f}")
-                        if score > best_score:
-                            best_score = score
-                            best_text = text
-                            best_params = {'lang': lang, 'psm': psm, 'scale': scale, 'oem': oem, 'deskew': os.environ.get('OCR_DESKEW', '1'), 'variant': v_idx}
-                        if score >= threshold:
-                            logger.info(f"AutoOCR selected: variant={v_idx}, lang={lang}, psm={psm}, oem={oem}, scale={scale}, score={score:.3f}")
                             os.environ['OCR_PSM'] = str(psm)
                             os.environ['OCR_SCALE'] = str(scale)
                             os.environ['OCR_OEM'] = str(oem)
-                            return best_text, best_params
+                            text, _ = perform_ocr(processed, lang)
+                            score = _evaluate_text_quality(text, lang)
+                            logger.debug(f"AutoOCR: variant={v_idx}, lang={lang}, psm={psm}, scale={scale}, oem={oem}, score={score:.3f}")
+                            if score > best_score:
+                                best_score = score
+                                best_text = text
+                                best_params = {'lang': lang, 'psm': psm, 'scale': scale, 'oem': oem, 'deskew': os.environ.get('OCR_DESKEW', '1'), 'variant': v_idx}
+                            if score >= threshold:
+                                logger.info(f"AutoOCR selected: variant={v_idx}, lang={lang}, psm={psm}, oem={oem}, scale={scale}, score={score:.3f}")
+                                os.environ['OCR_PSM'] = str(psm)
+                                os.environ['OCR_SCALE'] = str(scale)
+                                os.environ['OCR_OEM'] = str(oem)
+                                return best_text, best_params
         logger.info(f"AutoOCR best: variant={best_params['variant']}, lang={best_params['lang']}, psm={best_params['psm']}, oem={best_params.get('oem')}, scale={best_params['scale']}, score={best_score:.3f}")
         os.environ['OCR_PSM'] = str(best_params['psm'])
         os.environ['OCR_SCALE'] = str(best_params['scale'])

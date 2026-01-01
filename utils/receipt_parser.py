@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 import logging
 from typing import Dict, Any, Optional, List, Tuple
-from utils.word_lists import get_words
+from utils.word_lists import get_words, get_all_fields
 from functools import lru_cache
 
 # Configure logging
@@ -180,8 +180,6 @@ def extract_receipt_info(text: str, language: str = 'cs') -> Dict[str, Any]:
             'purpose': 'Ostatní',
             'specific_data': {}
         }
-
-from utils.word_lists import get_words, get_all_fields
 
 def determine_receipt_type(text: str, language: str) -> str:
     """

@@ -10,7 +10,6 @@ from PIL import Image
 import cv2
 import numpy as np
 import os
-import requests
 from typing import Dict, List, Any, Optional, Tuple, Union
 from utils.exceptions import OcrError
 from utils.ocr_utils import perform_ocr, preprocess_image

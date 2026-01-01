@@ -31,6 +31,11 @@ CELL_MAPPINGS: Dict[Tuple[str, str, str], Tuple[str, str]] = {
     ('Ostatní', 'EUR', 'Hotovost'): ('C32', 'C39'),
     ('Ostatní', 'CZK', 'Kartou'): ('D32', 'D39'),
     ('Ostatní', 'CZK', 'Hotovost'): ('E32', 'E39'),
+    
+    ('Stravování', 'EUR', 'Kartou'): ('B40', 'B47'),
+    ('Stravování', 'EUR', 'Hotovost'): ('C40', 'C47'),
+    ('Stravování', 'CZK', 'Kartou'): ('D40', 'D47'),
+    ('Stravování', 'CZK', 'Hotovost'): ('E40', 'E47'),
 }
 
 def standardize_purpose(purpose: str) -> str:
