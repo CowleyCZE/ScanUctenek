@@ -76,6 +76,15 @@ def initialize_session_state() -> None:
     if 'tesseract_cmd' not in st.session_state:
         st.session_state.tesseract_cmd = os.environ.get('TESSERACT_CMD', r"C:\Program Files\Tesseract-OCR\tesseract.exe")
         os.environ['TESSERACT_CMD'] = st.session_state.tesseract_cmd
+    # Nové proměnné pro multi-image workflow
+    if 'uploaded_images' not in st.session_state:
+        st.session_state.uploaded_images = []  # Seznam nahraných obrázků (bytes)
+    if 'image_rotations' not in st.session_state:
+        st.session_state.image_rotations = {}  # Rotace pro každý index {index: stupně}
+    if 'current_image_index' not in st.session_state:
+        st.session_state.current_image_index = 0  # Aktuálně zobrazený obrázek
+    if 'analysis_results' not in st.session_state:
+        st.session_state.analysis_results = {}  # Výsledky analýzy {index: {'text': ..., 'info': ...}}
 
 def get_svg_content() -> str:
     """
@@ -215,70 +224,177 @@ def process_scan_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
                 key='image_source_radio'
             )
             
-            uploaded_file = None
             if image_source == 'camera':
                 if not st.session_state.camera_enabled:
                     if st.button("Zapnout kameru"):
                         st.session_state.camera_enabled = True
                         st.rerun()
                 else:
-                    uploaded_file = st.camera_input("Pořídit snímek")
+                    camera_image = st.camera_input("Pořídit snímek")
+                    if camera_image is not None:
+                        image_bytes = camera_image.read()
+                        # Přidat jako nový obrázek
+                        st.session_state.uploaded_images.append(image_bytes)
+                        st.session_state.current_image_index = len(st.session_state.uploaded_images) - 1
+                        st.rerun()
                     if st.button("Vypnout kameru"):
                         st.session_state.camera_enabled = False
                         st.rerun()
             else:
-                uploaded_file = st.file_uploader(
-                    "Nahrát obrázek",
-                    type=['png', 'jpg', 'jpeg']
+                uploaded_files = st.file_uploader(
+                    "Nahrát obrázky",
+                    type=['png', 'jpg', 'jpeg'],
+                    accept_multiple_files=True,
+                    key='file_uploader'
                 )
+                
+                # Zpracování nahraných souborů
+                if uploaded_files:
+                    new_images = []
+                    for f in uploaded_files:
+                        img_bytes = f.read()
+                        # Kontrola, zda obrázek již není nahrán (porovnání velikosti)
+                        if img_bytes not in st.session_state.uploaded_images:
+                            new_images.append(img_bytes)
+                    
+                    if new_images:
+                        st.session_state.uploaded_images.extend(new_images)
+                        st.session_state.current_image_index = len(st.session_state.uploaded_images) - len(new_images)
+                        st.rerun()
 
-            # Zobrazení náhledu
-            if uploaded_file is not None:
-                image_bytes = uploaded_file.read()
-                st.session_state.image_bytes = image_bytes
+            # Zobrazení náhledu a ovládání, pokud jsou nahrané obrázky
+            if st.session_state.uploaded_images:
+                total_images = len(st.session_state.uploaded_images)
+                current_idx = st.session_state.current_image_index
+                
+                # Zajištění platného indexu
+                if current_idx >= total_images:
+                    current_idx = total_images - 1
+                    st.session_state.current_image_index = current_idx
+                if current_idx < 0:
+                    current_idx = 0
+                    st.session_state.current_image_index = current_idx
+                
+                st.markdown(f"**Účtenka {current_idx + 1} z {total_images}**")
+                
+                # Navigace mezi obrázky
+                nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
+                with nav_col1:
+                    if st.button("◀ Předchozí", disabled=(current_idx == 0)):
+                        st.session_state.current_image_index -= 1
+                        st.rerun()
+                with nav_col3:
+                    if st.button("Další ▶", disabled=(current_idx >= total_images - 1)):
+                        st.session_state.current_image_index += 1
+                        st.rerun()
+                
+                # Rotace obrázku
+                rot_col1, rot_col2 = st.columns([1, 1])
+                with rot_col1:
+                    if st.button("↻ Otočit o 90°"):
+                        current_rotation = st.session_state.image_rotations.get(current_idx, 0)
+                        st.session_state.image_rotations[current_idx] = (current_rotation + 90) % 360
+                        # Smazat výsledky analýzy při rotaci
+                        if current_idx in st.session_state.analysis_results:
+                            del st.session_state.analysis_results[current_idx]
+                        st.rerun()
+                with rot_col2:
+                    if st.button("🗑 Odebrat účtenku"):
+                        st.session_state.uploaded_images.pop(current_idx)
+                        # Aktualizovat rotace a výsledky
+                        new_rotations = {}
+                        new_results = {}
+                        for idx in list(st.session_state.image_rotations.keys()):
+                            if idx < current_idx:
+                                new_rotations[idx] = st.session_state.image_rotations[idx]
+                            elif idx > current_idx:
+                                new_rotations[idx - 1] = st.session_state.image_rotations[idx]
+                        for idx in list(st.session_state.analysis_results.keys()):
+                            if idx < current_idx:
+                                new_results[idx] = st.session_state.analysis_results[idx]
+                            elif idx > current_idx:
+                                new_results[idx - 1] = st.session_state.analysis_results[idx]
+                        st.session_state.image_rotations = new_rotations
+                        st.session_state.analysis_results = new_results
+                        if st.session_state.current_image_index >= len(st.session_state.uploaded_images):
+                            st.session_state.current_image_index = max(0, len(st.session_state.uploaded_images) - 1)
+                        st.rerun()
+                
+                # Načtení a zobrazení aktuálního obrázku s rotací
+                image_bytes = st.session_state.uploaded_images[current_idx]
                 preview = Image.open(io.BytesIO(image_bytes))
-                st.session_state.preview_image = preview
-                st.image(preview, caption="Náhled účtenky", use_container_width=True)
+                rotation = st.session_state.image_rotations.get(current_idx, 0)
+                if rotation != 0:
+                    preview = preview.rotate(-rotation, expand=True)  # Záporná hodnota pro clockwise
+                st.image(preview, caption=f"Náhled účtenky {current_idx + 1}", use_container_width=True)
 
         with col2:
-            # Zpracování obrázku a zobrazení formuláře
-            if 'image_bytes' in st.session_state and st.session_state.image_bytes:
-                with st.spinner('Zpracovávám obrázek...'):
-                    image = Image.open(io.BytesIO(st.session_state.image_bytes))
-                    if 'ocr_params' in st.session_state:
-                        used = st.session_state.ocr_params
-                        os.environ['OCR_PSM'] = str(used.get('psm', os.environ.get('OCR_PSM','6')))
-                        os.environ['OCR_SCALE'] = str(used.get('scale', os.environ.get('OCR_SCALE','1.0')))
-                        lang_map_rev = {'ces': 'cs', 'fra': 'fr', 'deu': 'de'}
-                        os.environ['OCR_LANG_OVERRIDE'] = lang_map_rev.get(used.get('lang','ces'), os.environ.get('OCR_LANG_OVERRIDE','auto'))
-                        logger.info(f"Používám uložené OCR parametry: {used}")
-                    extracted_text, _ = process_receipt_image(image)
-                    auto_enabled = os.environ.get('OCR_MULTIPASS', '0') in ['1', 'true', 'yes']
-                    if auto_enabled:
-                        override = os.environ.get('OCR_LANG_OVERRIDE', 'auto')
-                        lang_map = {'cs': 'ces', 'fr': 'fra', 'de': 'deu'}
-                        init_lang = lang_map.get(override, 'ces')
-                        try:
-                            det_lang = detect_language(extracted_text)
-                            init_lang = lang_map.get(det_lang, init_lang)
-                        except Exception:
-                            pass
-                        logger.info(f"Spouštím auto OCR optimalizaci: override={override}, init_lang={init_lang}, PSM={os.environ.get('OCR_PSM')}, scale={os.environ.get('OCR_SCALE')}")
-                        if init_lang == 'fra':
-                            os.environ['OCR_PROFILE'] = 'dotmatrix'
-                        optimized_text, used = auto_ocr_optimize(preprocess_image(np.array(image)), init_lang)
-                        if optimized_text.strip():
-                            extracted_text = optimized_text
-                            os.environ['OCR_PSM'] = str(used['psm'])
-                            os.environ['OCR_SCALE'] = str(used['scale'])
-                            st.session_state.ocr_params = used
-                            logger.info(f"Auto OCR vybralo parametry: {used}")
-                            if 'oem' in used:
-                                os.environ['OCR_OEM'] = str(used['oem'])
+            # Tlačítko pro spuštění analýzy
+            if st.session_state.uploaded_images:
+                current_idx = st.session_state.current_image_index
                 
-                if extracted_text:
-                    receipt_info = extract_receipt_info(extracted_text)
-                    
+                # Kontrola, zda již existuje výsledek analýzy
+                if current_idx in st.session_state.analysis_results:
+                    analysis = st.session_state.analysis_results[current_idx]
+                    extracted_text = analysis['text']
+                    receipt_info = analysis['info']
+                else:
+                    extracted_text = None
+                    receipt_info = None
+                
+                # Tlačítko pro analýzu
+                if st.button("🔍 Analyzovat vybranou účtenku", type="primary"):
+                    with st.spinner('Zpracovávám obrázek...'):
+                        # Načtení obrázku s rotací
+                        image_bytes = st.session_state.uploaded_images[current_idx]
+                        image = Image.open(io.BytesIO(image_bytes))
+                        rotation = st.session_state.image_rotations.get(current_idx, 0)
+                        if rotation != 0:
+                            image = image.rotate(-rotation, expand=True)
+                        
+                        # OCR parametry
+                        if 'ocr_params' in st.session_state:
+                            used = st.session_state.ocr_params
+                            os.environ['OCR_PSM'] = str(used.get('psm', os.environ.get('OCR_PSM','6')))
+                            os.environ['OCR_SCALE'] = str(used.get('scale', os.environ.get('OCR_SCALE','1.0')))
+                            lang_map_rev = {'ces': 'cs', 'fra': 'fr', 'deu': 'de'}
+                            os.environ['OCR_LANG_OVERRIDE'] = lang_map_rev.get(used.get('lang','ces'), os.environ.get('OCR_LANG_OVERRIDE','auto'))
+                        
+                        extracted_text, _ = process_receipt_image(image)
+                        
+                        # Auto OCR optimalizace
+                        auto_enabled = os.environ.get('OCR_MULTIPASS', '0') in ['1', 'true', 'yes']
+                        if auto_enabled:
+                            override = os.environ.get('OCR_LANG_OVERRIDE', 'auto')
+                            lang_map = {'cs': 'ces', 'fr': 'fra', 'de': 'deu'}
+                            init_lang = lang_map.get(override, 'ces')
+                            try:
+                                det_lang = detect_language(extracted_text)
+                                init_lang = lang_map.get(det_lang, init_lang)
+                            except Exception:
+                                pass
+                            if init_lang == 'fra':
+                                os.environ['OCR_PROFILE'] = 'dotmatrix'
+                            optimized_text, used = auto_ocr_optimize(preprocess_image(np.array(image)), init_lang)
+                            if optimized_text.strip():
+                                extracted_text = optimized_text
+                                os.environ['OCR_PSM'] = str(used['psm'])
+                                os.environ['OCR_SCALE'] = str(used['scale'])
+                                st.session_state.ocr_params = used
+                        
+                        if extracted_text:
+                            receipt_info = extract_receipt_info(extracted_text)
+                            # Uložit výsledky analýzy
+                            st.session_state.analysis_results[current_idx] = {
+                                'text': extracted_text,
+                                'info': receipt_info
+                            }
+                            st.rerun()
+                        else:
+                            st.warning("Nepodařilo se extrahovat žádný text. Zkuste účtenku otočit nebo použít jiný obrázek.")
+                
+                # Zobrazení výsledků analýzy
+                if extracted_text and receipt_info:
                     st.subheader("Extrahované informace")
                     with st.expander("Zobrazení OCR textu"):
                         st.text(extracted_text)
@@ -287,16 +403,16 @@ def process_scan_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
                             rev = {'ces':'cs','fra':'fr','deu':'de'}
                             used_lang = rev.get(st.session_state.ocr_params.get('lang', used_lang), used_lang)
                         st.caption(f"Použité OCR: PSM={os.environ.get('OCR_PSM','')}, scale={os.environ.get('OCR_SCALE','')}, lang={used_lang}")
-                        if os.environ.get('OCR_MULTIPASS','0') in ['1','true','yes']:
-                            st.caption("Multipass: aktivní, vyzkoušené varianty předzpracování a jazyky")
-                    with st.form("receipt_form"):
+                    
+                    with st.form(f"receipt_form_{current_idx}"):
                         merchant = st.text_input("Obchodník", value=receipt_info.get('merchant', ''))
                         date = st.date_input("Datum", value=receipt_info.get('date', datetime.now()))
                         total = st.number_input("Celková částka", min_value=0.0, value=float(receipt_info.get('total', 0.0)))
                         currency = st.selectbox("Měna", options=APP_CONFIG['supported_currencies'],
                                                 index=APP_CONFIG['supported_currencies'].index(receipt_info.get('currency', APP_CONFIG['default_currency'])))
-                        payment_method = st.selectbox("Způsob platby", options=['Kartou', 'Hotovost'], index=0)
-                        purpose = st.selectbox("Účel", options=['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Ostatní'], index=0)
+                        payment_method = st.selectbox("Způsob platby", options=['Kartou', 'Hotovost', 'Neznámý'], index=0)
+                        purpose = st.selectbox("Účel", options=['Pohonné hmoty', 'Mýtné', 'Ubytování', 'Stravování', 'Ostatní'], index=0)
+                        
                         if st.form_submit_button("Uložit účtenku"):
                             receipt_data = {
                                 'merchant': merchant, 'date': date, 'total': total, 'currency': currency,
@@ -305,13 +421,17 @@ def process_scan_tab(tab: "st.delta_generator.DeltaGenerator") -> None:
                             }
                             if save_receipt(receipt_data):
                                 st.success("Účtenka byla úspěšně uložena.")
-                                st.session_state.preview_image = None
-                                st.session_state.image_bytes = None
+                                # Smazat pouze výsledek analýzy, ne obrázek
+                                if current_idx in st.session_state.analysis_results:
+                                    del st.session_state.analysis_results[current_idx]
+                                # Přejít na další obrázek, pokud existuje
+                                if current_idx < len(st.session_state.uploaded_images) - 1:
+                                    st.session_state.current_image_index += 1
                                 st.rerun()
                             else:
                                 st.error("Chyba při ukládání účtenky.")
-                else:
-                    st.warning("Nepodařilo se extrahovat žádný text. Zkuste prosím jiný obrázek.")
+                elif current_idx not in st.session_state.analysis_results:
+                    st.info("Klikněte na tlačítko 'Analyzovat vybranou účtenku' pro spuštění OCR analýzy.")
 
 def get_filtered_receipts(category: str) -> List[Dict[str, Any]]:
     """

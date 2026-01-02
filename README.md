@@ -8,39 +8,52 @@ ScanUctenek je open-source aplikace pro automatizované zpracování účtenek a
 ## Hlavní funkce
 
 - **OCR účtenek:** Automatické rozpoznání textu z obrázků účtenek (využívá Tesseract OCR).
-- **Parsers & rozpoznávání položek:** Pokročilé parsování textu účtenky, včetně detekce položek, cen, DPH a obchodů.
+- **Parsování a rozpoznávání položek:** Pokročilé parsování textu účtenky, včetně detekce položek, cen, DPH a obchodů.
 - **Export do Excelu:** Možnost exportovat zpracovaná data do přehledné tabulky (XLSX).
 - **Uživatelské slovníky:** Uživatel může definovat vlastní kategorie a slovníky pro přesnější rozpoznání položek.
-- **Lokalizace:** Podpora vícejazyčného rozhraní (CZ/EN) – viz složka `localization/`.
-- **Webové rozhraní:** (volitelně) Možnost rozšíření o jednoduché webové UI pro správu účtenek.
+- **Lokalizace:** Podpora vícejazyčného rozhraní (čeština, francouzština, němčina).
+- **Webové rozhraní:** Streamlit webové UI pro snadnou správu účtenek.
+
+---
+
+## Podporované kategorie
+
+- **Pohonné hmoty** – účtenky z čerpacích stanic
+- **Mýtné** – dálniční poplatky a mýtné
+- **Ubytování** – hotely, penziony, apartmány
+- **Stravování** – restaurace, jídlo
+- **Ostatní** – vše ostatní
 
 ---
 
 ## Architektura a složky projektu
 
-- `app.py` – Hlavní spouštěcí bod aplikace (webový server nebo CLI).
+- `app.py` – Hlavní Streamlit aplikace.
+- `config.py` – Konfigurace aplikace (jazyky, měny, kategorie).
 - `utils/` – Pomocné moduly:
   - `ocr.py`, `ocr_utils.py` – Funkce pro zpracování obrázků a OCR.
-  - `receipt_parser.py`, `receipt_parser_extended.py` – Parsování textu účtenek.
+  - `receipt_parser.py` – Parsování textu účtenek.
   - `excel_export.py` – Export dat do Excelu.
-  - `word_lists.py`, `cell_mapping.py` – Práce se slovníky a mapováním kategorií.
-- `data/` – Uživatelská data (slovníky, kategorie, uložené účtenky).
+  - `cell_mapping.py` – Mapování kategorií na buňky v Excelu.
+  - `word_lists.py` – Práce se slovníky pro rozpoznávání.
+  - `exceptions.py` – Vlastní výjimky.
+  - `pdf_report.py` – Generování PDF reportů.
+- `data/` – Uživatelská data (slovníky, kategorie).
 - `localization/` – Překlady a jazykové mutace.
-- `styles/` – CSS styly pro případné webové rozhraní.
-- `templates/` – Šablony pro export (např. `user_template.xlsx`).
-- `assets/`, `attached_assets/` – Obrázky, loga, screenshoty.
+- `styles/` – CSS styly pro webové rozhraní.
+- `templates/` – Šablony pro export.
+- `assets/` – Obrázky a loga.
 - `tests/` – Automatizované testy (pytest).
-
 
 ---
 
 ## Jak aplikace funguje
 
-1. **Nahrání účtenky:** Uživatel nahraje fotografii účtenky (přes webové rozhraní nebo CLI).
-2. **OCR a předzpracování:** Obrázek je zpracován pomocí Tesseract OCR (`utils/ocr.py`), text je očištěn a připraven k parsování.
-3. **Parsování a extrakce dat:** Text je analyzován (`utils/receipt_parser.py`), detekují se položky, ceny, obchod, datum, DPH atd. Využívají se uživatelské slovníky a kategorie.
-4. **Uložení a export:** Výsledná data lze uložit do JSON nebo exportovat do Excelu (`utils/excel_export.py`, šablona v `templates/`).
-5. **Správa slovníků a kategorií:** Uživatel může upravovat slovníky a kategorie v souborech v `data/` nebo přes UI.
+1. **Nahrání účtenky:** Uživatel nahraje fotografii účtenky přes webové rozhraní nebo pořídí snímek kamerou.
+2. **OCR a předzpracování:** Obrázek je zpracován pomocí Tesseract OCR, text je očištěn a připraven k parsování.
+3. **Parsování a extrakce dat:** Text je analyzován, detekují se položky, ceny, obchod, datum, DPH atd.
+4. **Uložení a export:** Výsledná data lze uložit nebo exportovat do Excelu.
+5. **Správa slovníků a kategorií:** Uživatel může upravovat slovníky a kategorie přes UI.
 
 ---
 
@@ -51,22 +64,45 @@ ScanUctenek je open-source aplikace pro automatizované zpracování účtenek a
    git clone https://github.com/CowleyCZE/ScanUctenek.git
    cd ScanUctenek
    ```
+
 2. **Nainstalujte závislosti:**
    ```bash
-   pip3 install -r requirements.txt
+   pip install -r requirements.txt
    ```
-3. **Spusťte aplikaci:**
+
+3. **Nainstalujte Tesseract OCR:**
+
+   **Windows (PowerShell jako administrátor):**
+   ```powershell
+   # Instalace Tesseract
+   winget install UB-Mannheim.TesseractOCR
+   
+   # Stažení jazykových balíčků (čeština, francouzština, němčina)
+   $tessdata = "C:\Program Files\Tesseract-OCR\tessdata"
+   @("ces", "fra", "deu") | ForEach-Object { Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata/raw/main/$_.traineddata" -OutFile "$tessdata\$_.traineddata" }
+   ```
+
+   **Linux:**
    ```bash
-   python3 app.py
+   sudo apt install tesseract-ocr tesseract-ocr-ces tesseract-ocr-fra tesseract-ocr-deu
    ```
-   (nebo spusťte testy: `pytest`)
+
+   **macOS:**
+   ```bash
+   brew install tesseract tesseract-lang
+   ```
+
+4. **Spusťte aplikaci:**
+   ```bash
+   streamlit run app.py
+   ```
 
 ---
 
 ## Požadavky
 
 - Python 3.8+
-- Tesseract OCR (lze nainstalovat přes balíček `tesseract-ocr`)
+- Tesseract OCR s jazykovými balíčky (ces, fra, deu)
 - Knihovny viz `requirements.txt`
 
 ---
@@ -76,7 +112,7 @@ ScanUctenek je open-source aplikace pro automatizované zpracování účtenek a
 Testy jsou ve složce `tests/` a lze je spustit příkazem:
 
 ```bash
-pytest
+pytest -v
 ```
 
 ---
