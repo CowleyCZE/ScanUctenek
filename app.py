@@ -4,7 +4,7 @@ Tento modul obsahuje hlavní logiku Streamlit aplikace pro skenování a zpracov
 """
 
 import streamlit as st
-import base64
+
 from datetime import datetime
 from PIL import Image
 import cv2
@@ -19,10 +19,8 @@ from utils.excel_export import export_to_excel
 from localization.translations import get_text
 from utils.word_lists import (
     add_field,
-    get_all_fields,
     remove_field,
     load_user_categories,
-    save_wordlists,
 )
 import io
 
@@ -125,7 +123,7 @@ def process_receipt_image(image: Image.Image) -> Tuple[str, Dict[str, Any]]:
         
         # Převod RGB na BGR pokud je potřeba
         if len(image_np.shape) == 3 and image_np.shape[2] == 3:
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+            image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)  # pylint: disable=no-member
             
         # Předzpracování obrázku
         os.environ['OCR_PROFILE'] = os.environ.get('OCR_PROFILE', 'default')
